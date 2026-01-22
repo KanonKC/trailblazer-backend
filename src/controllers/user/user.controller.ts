@@ -17,7 +17,12 @@ export default class UserController {
             state: req.query.state,
             scope: req.query.scope.split(" ")
         }
-        const response = await this.userService.login(request);
-        res.status(201).send(response)
+        try {
+            const response = await this.userService.login(request);
+            res.status(201).send(response)
+        } catch (err) {
+            console.log("Fail",err)
+            res.status(400).send({message: String(err)})
+        }
     }
 }

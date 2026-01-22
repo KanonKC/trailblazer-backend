@@ -19,6 +19,7 @@ model User {
   created_at   DateTime   @default(now())
   updated_at   DateTime   @updatedAt
   workflows    Workflow[]
+  triggers     Trigger[]
 }
 
 model Workflow {
@@ -27,6 +28,18 @@ model Workflow {
   data       Json
   owner_id   String
   owner      User     @relation(fields: [owner_id], references: [id])
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  triggers Trigger[]
+}
+
+model Trigger {
+  id String @id
+  type String
+  platform String
+  user_id String
+  user User @relation(fields: [user_id], references: [id])
+  workflows Workflow[]
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 }

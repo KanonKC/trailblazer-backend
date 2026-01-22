@@ -10,4 +10,19 @@ export default class UserRepository {
             data: request
         })
     }
+    
+    async upsert(request: CreateUserRequest): Promise<User> {
+        return prisma.user.upsert({
+            where: {
+                twitch_id: request.twitch_id
+            },
+            create: request,
+            update: request
+        })
+    }
+
+    async getByTwitchId(twitchId: string): Promise<User | null> {
+        return prisma.user.findUnique({ where: { twitch_id: twitchId } })
+    }
+
 }
