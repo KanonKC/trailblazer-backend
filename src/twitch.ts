@@ -37,5 +37,11 @@ async function deleteSub() {
 (async () => {
     // await deleteSub()
     // await addSub()
-    await list()
+    // await list()
+    const subscriptions = await twitchAppAPI.eventSub.getSubscriptionsForUser("135783794");
+    // console.log(subscriptions.data[0]);
+
+    for (const subscription of subscriptions.data) {
+        console.log({...subscription});
+    }
 })()

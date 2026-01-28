@@ -1,0 +1,23 @@
+meta {
+  name: Create First Word
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BaseURL}}/api/v1/first-word
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "owner_id": "",
+    "replay_message": "Hello from Bruno"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

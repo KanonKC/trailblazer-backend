@@ -1,12 +1,19 @@
 import { HelixEventSubSubscription } from "@twurple/api/lib";
 import { FastifyReply, FastifyRequest } from "fastify";
+import { ChannelChatMessageEvent } from "./request";
+import FirstWordService from "@/services/firstWord/firstWord.service";
 
 export default class ChatMessageEvent {
-    constructor() { }
+
+    private readonly firstWordService: FirstWordService;
+
+    constructor(firstWordService: FirstWordService) {
+        this.firstWordService = firstWordService;
+    }
 
     async handle(req: FastifyRequest, res: FastifyReply) {
         console.log("CreateMessageEvent", req.body)
- 
+
         const body = req.body as any
 
         if (body.subscription.status === "webhook_callback_verification_pending") {
@@ -15,7 +22,10 @@ export default class ChatMessageEvent {
             return
         }
 
-        else if (body.subscription.status === "enabled") {
+        const event = body.event as ChannelChatMessageEvent
+
+        if (body.subscription.status === "enabled") {
+            this.firstWordService.handleTwitchChatMessageEvent(event)
             res.status(204).send()
             return
         }

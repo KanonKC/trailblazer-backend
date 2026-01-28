@@ -3,20 +3,25 @@ import UserService from "./services/user/user.service";
 import UserController from "./controllers/user/user.controller";
 import UserRepository from "./repositories/user/user.repository";
 import config from "./config";
-import ChatMessageEvent from "./events/twitch/chat-message/chat-message.event";
+import ChatMessageEvent from "./events/twitch/chatMessage/chatMessage.event";
+import FirstWordRepository from "./repositories/firstWord/firstWord.repository";
+import FirstWordService from "./services/firstWord/firstWord.service";
+
+import FirstWordController from "./controllers/firstWord/firstWord.controller";
 
 const userRepository = new UserRepository();
+const firstWordRepository = new FirstWordRepository();
 const userService = new UserService(config, userRepository);
 const userController = new UserController(userService);
-const chatMessageEvent = new ChatMessageEvent()
+const firstWordService = new FirstWordService(firstWordRepository, userRepository);
+const firstWordController = new FirstWordController(firstWordService);
+const chatMessageEvent = new ChatMessageEvent(firstWordService)
 
 const server = fastify();
 
-server.get("/", (req, res) => {
-  res.send("Hello World");
-});
 
 server.get("/api/v1/login", userController.login.bind(userController))
+server.post("/api/v1/first-word", firstWordController.create.bind(firstWordController))
 
 server.post("/webhook/v1/twitch/event-sub/chat-message-events", chatMessageEvent.handle.bind(chatMessageEvent))
 
