@@ -8,6 +8,9 @@ import FirstWordService from "./services/firstWord/firstWord.service";
 import FirstWordController from "./controllers/firstWord/firstWord.controller";
 import TwitchChannelChatMessageEvent from "./events/twitch/channelChatMessage/channelChatMessage.event";
 
+import cookie from "@fastify/cookie";
+import cors from "@fastify/cors";
+
 const userRepository = new UserRepository();
 const firstWordRepository = new FirstWordRepository();
 const userService = new UserService(config, userRepository);
@@ -18,8 +21,21 @@ const chatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
 
 const server = fastify();
 
+server.register(cors, {
+    origin: ["http://localhost:3000"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+})
+
+server.register(cookie, {
+    secret: "some-secret-key-that-should-be-in-env", // TODO: Move to env
+    parseOptions: {}
+});
+
 
 server.get("/api/v1/login", userController.login.bind(userController))
+server.get("/api/v1/user/me", userController.me.bind(userController))
+server.post("/api/v1/logout", userController.logout.bind(userController))
 server.post("/api/v1/first-word", firstWordController.create.bind(firstWordController))
 
 server.post("/webhook/v1/twitch/event-sub/chat-message-events", chatMessageEvent.handle.bind(chatMessageEvent))
