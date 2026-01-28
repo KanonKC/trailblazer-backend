@@ -59,6 +59,7 @@ model FirstWord {
 model FirstWordChatter {
   id                Int       @id @default(autoincrement())
   twitch_chatter_id String
+  twitch_channel_id String
   first_word_id     String
   first_word        FirstWord @relation(fields: [first_word_id], references: [id])
   created_at        DateTime  @default(now())

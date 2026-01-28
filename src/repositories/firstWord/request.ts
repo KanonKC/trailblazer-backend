@@ -7,3 +7,9 @@ export interface CreateFirstWordRequest {
 export interface UpdateFirstWordRequest {
     reply_message?: string;
 }
+
+export interface AddChatterRequest {
+    first_word_id: string;
+    twitch_chatter_id: string;
+    twitch_channel_id: string;
+}

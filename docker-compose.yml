@@ -1,0 +1,24 @@
+services:
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - blaze-network
+  redis-insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    networks:
+      - blaze-network
+volumes:
+  redis_data:
+    driver: local
+networks:
+  blaze-network:
+    driver: bridge

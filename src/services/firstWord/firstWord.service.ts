@@ -1,10 +1,12 @@
 import Configurations from "@/config/index";
 import { TwitchChannelChatMessageEventRequest } from "@/events/twitch/channelChatMessage/request";
 import { TwitchStreamOnlineEventRequest } from "@/events/twitch/streamOnline/request";
+import redis from "@/libs/redis";
 import { createESTransport, twitchAppAPI } from "@/libs/twurple";
 import FirstWordRepository from "@/repositories/firstWord/firstWord.repository";
 import { CreateFirstWordRequest } from "@/repositories/firstWord/request";
 import UserRepository from "@/repositories/user/user.repository";
+import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
 
 export default class FirstWordService {
     private readonly cfg: Configurations
@@ -47,20 +49,49 @@ export default class FirstWordService {
             return
         }
 
-        const user = await this.userRepository.getByTwitchId(e.broadcaster_user_id);
+        let chatters: FirstWordChatter[] = []
+        const chattersCacheKey = `first_word:chatters:${e.broadcaster_user_id}`
+        const chattersCache = await redis.get(chattersCacheKey)
+
+        if (chattersCache) {
+            chatters = JSON.parse(chattersCache)
+        } else {
+            chatters = await this.firstWordRepository.getChattersByChannelId(e.broadcaster_user_id);
+            redis.set(chattersCacheKey, JSON.stringify(chatters), { expiration: { type: "EX", value: 60 * 60 * 2 } })
+        }
+        const chatter = chatters.find(chatter => chatter.twitch_chatter_id === e.chatter_user_id)
+        if (chatter) {
+            return
+        }
+
+        let user: User | null = null
+        const userCacheKey = `first_word:user:${e.broadcaster_user_id}`
+        const userCache = await redis.get(userCacheKey)
+
+        if (userCache) {
+            user = JSON.parse(userCache)
+        } else {
+            user = await this.userRepository.getByTwitchId(e.broadcaster_user_id);
+            redis.set(userCacheKey, JSON.stringify(user), { expiration: { type: "EX", value: 60 * 60 * 2 } })
+        }
+
         if (!user) {
             throw new Error("User not found");
         }
 
-        const firstWord = await this.firstWordRepository.getByOwnerId(user.id);
-        if (!firstWord) {
-            throw new Error("First word not found");
+        const firstWordCacheKey = `first_word:owner:${user.id}`
+        const firstWordCache = await redis.get(firstWordCacheKey)
+        let firstWord: FirstWord | null = null
+
+        if (firstWordCache) {
+            firstWord = JSON.parse(firstWordCache)
+        } else {
+            firstWord = await this.firstWordRepository.getByOwnerId(user.id);
+            redis.set(firstWordCacheKey, JSON.stringify(firstWord), { expiration: { type: "EX", value: 60 * 60 * 2 } })
         }
 
-        try {
-            await this.firstWordRepository.addChatter(firstWord.id, e.chatter_user_id)
-        } catch (error) {
-            return
+        if (!firstWord) {
+            throw new Error("First word not found");
         }
 
         let message = firstWord.reply_message
@@ -80,6 +111,21 @@ export default class FirstWordService {
             }
             await twitchAppAPI.chat.sendChatMessageAsApp(this.cfg.twitch.defaultBotId, e.broadcaster_user_id, message)
         }
+
+        await this.firstWordRepository.addChatter({
+            first_word_id: firstWord.id,
+            twitch_chatter_id: e.chatter_user_id,
+            twitch_channel_id: e.broadcaster_user_id,
+        })
+        chatters.push({
+            id: 0,
+            first_word_id: firstWord.id,
+            twitch_chatter_id: e.chatter_user_id,
+            twitch_channel_id: e.broadcaster_user_id,
+            created_at: new Date(),
+            updated_at: new Date()
+        })
+        redis.set(chattersCacheKey, JSON.stringify(chatters), { expiration: { type: "EX", value: 60 * 60 * 2 } })
     }
 
     async resetChatters(e: TwitchStreamOnlineEventRequest): Promise<void> {
