@@ -21,8 +21,6 @@ export default class UserService {
             this.cfg.twitch.redirectUrl
         )
 
-        console.log('token',token)
-
         const tokenInfo = await getTokenInfo(token.accessToken, this.cfg.twitch.clientId)
 
         if (!tokenInfo.userId) {
@@ -30,7 +28,6 @@ export default class UserService {
         }
 
         const twitchUser = await twitchAppAPI.users.getUserById(tokenInfo.userId)
-        console.log('user', twitchUser)
         if (!twitchUser) {
             throw new Error("Invalid Twitch user")
         }
@@ -41,8 +38,6 @@ export default class UserService {
             display_name: twitchUser.displayName,
             avatar_url: twitchUser.profilePictureUrl
         }
-        console.log("Creating")
         await this.userRepository.upsert(cr)
-        console.log("Done")
     }
 }

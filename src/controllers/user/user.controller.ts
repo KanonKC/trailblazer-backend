@@ -21,7 +21,6 @@ export default class UserController {
             const response = await this.userService.login(request);
             res.status(201).send(response)
         } catch (err) {
-            console.log("Fail",err)
             res.status(400).send({message: String(err)})
         }
     }

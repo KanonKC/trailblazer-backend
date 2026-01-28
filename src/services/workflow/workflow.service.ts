@@ -1,4 +1,4 @@
-import { twitchAppAPI } from "@/libs/twurple";
+import { createESTransport, twitchAppAPI } from "@/libs/twurple";
 import WorkflowRepository from "@/repositories/workflow/workflow.repository";
 import { Workflow } from "generated/prisma/client";
 
@@ -13,11 +13,8 @@ export default class WorkflowService {
         if (!owner) {
             throw new Error("Workflow not found")
         }
-        const eventSub = await twitchAppAPI.eventSub.subscribeToChannelChatMessageEvents(owner.twitch_id, {
-            method: "webhook",
-            callback: "https://blaze-dev.kanonkc.com/webhook/v1/twitch/event-sub/chat-message-events",
-            secret: "8chkr2187r3y6ppl57pspl5hjea2v0"
-        })
+        const tsp = createESTransport("/webhook/v1/twitch/event-sub/chat-message-events")
+        const eventSub = await twitchAppAPI.eventSub.subscribeToChannelChatMessageEvents(owner.twitch_id, tsp)
         console.log(eventSub)
     }
 

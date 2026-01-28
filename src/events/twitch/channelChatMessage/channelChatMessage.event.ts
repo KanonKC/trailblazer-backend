@@ -2,7 +2,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { TwitchChannelChatMessageEventRequest } from "./request";
 import FirstWordService from "@/services/firstWord/firstWord.service";
 
-export default class TwitchChatMessageEvent {
+export default class TwitchChannelChatMessageEvent {
 
     private readonly firstWordService: FirstWordService;
 

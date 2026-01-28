@@ -1,15 +1,18 @@
-import { CreateFirstWordRequest } from "@/repositories/firstWord/request";
-import FirstWordRepository from "@/repositories/firstWord/firstWord.repository";
-import { twitchAppAPI } from "@/libs/twurple";
-import UserRepository from "@/repositories/user/user.repository";
-import { TwitchChannelChatMessageEventRequest } from "@/events/twitch/chatMessage/request";
+import Configurations from "@/config/index";
+import { TwitchChannelChatMessageEventRequest } from "@/events/twitch/channelChatMessage/request";
 import { TwitchStreamOnlineEventRequest } from "@/events/twitch/streamOnline/request";
+import { createESTransport, twitchAppAPI } from "@/libs/twurple";
+import FirstWordRepository from "@/repositories/firstWord/firstWord.repository";
+import { CreateFirstWordRequest } from "@/repositories/firstWord/request";
+import UserRepository from "@/repositories/user/user.repository";
 
 export default class FirstWordService {
+    private readonly cfg: Configurations
     private readonly firstWordRepository: FirstWordRepository;
     private readonly userRepository: UserRepository;
 
-    constructor(firstWordRepository: FirstWordRepository, userRepository: UserRepository) {
+    constructor(cfg: Configurations, firstWordRepository: FirstWordRepository, userRepository: UserRepository) {
+        this.cfg = cfg;
         this.firstWordRepository = firstWordRepository;
         this.userRepository = userRepository;
     }
@@ -22,23 +25,17 @@ export default class FirstWordService {
 
         const userSubs = await twitchAppAPI.eventSub.getSubscriptionsForUser(user.twitch_id);
         const enabledSubs = userSubs.data.filter(sub => sub.status === 'enabled')
-        const userChatMessageSub = enabledSubs.filter(sub => sub.type === 'channel.chat.message')
 
+        const userChatMessageSub = enabledSubs.filter(sub => sub.type === 'channel.chat.message')
         if (userChatMessageSub.length === 0) {
-            await twitchAppAPI.eventSub.subscribeToChannelChatMessageEvents(user.twitch_id, {
-                method: "webhook",
-                callback: "https://blaze-dev.kanonkc.com/webhook/v1/twitch/event-sub/chat-message-events",
-                secret: "8chkr2187r3y6ppl57pspl5hjea2v0",
-            })
+            const tsp = createESTransport("/webhook/v1/twitch/event-sub/chat-message-events")
+            await twitchAppAPI.eventSub.subscribeToChannelChatMessageEvents(user.twitch_id, tsp)
         }
 
         const streamOnlineSubs = enabledSubs.filter(sub => sub.type === 'stream.online')
         if (streamOnlineSubs.length === 0) {
-            await twitchAppAPI.eventSub.subscribeToStreamOnlineEvents(user.twitch_id, {
-                method: "webhook",
-                callback: "https://blaze-dev.kanonkc.com/webhook/v1/twitch/event-sub/stream-online-events",
-                secret: "8chkr2187r3y6ppl57pspl5hjea2v0",
-            })
+            const tsp = createESTransport("/webhook/v1/twitch/event-sub/stream-online-events")
+            await twitchAppAPI.eventSub.subscribeToStreamOnlineEvents(user.twitch_id, tsp)
         }
 
         await this.firstWordRepository.create(request);
@@ -46,7 +43,7 @@ export default class FirstWordService {
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {
 
-        if (e.chatter_user_id === "1108286106") {
+        if (e.chatter_user_id === this.cfg.twitch.defaultBotId) {
             return
         }
 
@@ -81,7 +78,7 @@ export default class FirstWordService {
             for (const [key, value] of Object.entries(replaceMap)) {
                 message = message.replace(new RegExp(key, "g"), value)
             }
-            await twitchAppAPI.chat.sendChatMessageAsApp("1108286106", e.broadcaster_user_id, message)
+            await twitchAppAPI.chat.sendChatMessageAsApp(this.cfg.twitch.defaultBotId, e.broadcaster_user_id, message)
         }
     }
 

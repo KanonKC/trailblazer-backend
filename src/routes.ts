@@ -3,19 +3,18 @@ import UserService from "./services/user/user.service";
 import UserController from "./controllers/user/user.controller";
 import UserRepository from "./repositories/user/user.repository";
 import config from "./config";
-import ChatMessageEvent from "./events/twitch/chatMessage/chatMessage.event";
 import FirstWordRepository from "./repositories/firstWord/firstWord.repository";
 import FirstWordService from "./services/firstWord/firstWord.service";
-
 import FirstWordController from "./controllers/firstWord/firstWord.controller";
+import TwitchChannelChatMessageEvent from "./events/twitch/channelChatMessage/channelChatMessage.event";
 
 const userRepository = new UserRepository();
 const firstWordRepository = new FirstWordRepository();
 const userService = new UserService(config, userRepository);
 const userController = new UserController(userService);
-const firstWordService = new FirstWordService(firstWordRepository, userRepository);
+const firstWordService = new FirstWordService(config, firstWordRepository, userRepository);
 const firstWordController = new FirstWordController(firstWordService);
-const chatMessageEvent = new ChatMessageEvent(firstWordService)
+const chatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
 
 const server = fastify();
 
