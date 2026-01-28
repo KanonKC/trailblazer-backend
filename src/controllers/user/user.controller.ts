@@ -11,7 +11,6 @@ export default class UserController {
     }
 
     async login(req: FastifyRequest<{ Querystring: LoginQuery }>, res: FastifyReply) {
-        console.log(req.query)
         const request = {
             code: req.query.code,
             state: req.query.state,

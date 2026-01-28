@@ -9,7 +9,7 @@ const config: Configurations = {
         clientId: process.env.TWITCH_CLIENT_ID || "",
         clientSecret: process.env.TWITCH_CLIENT_SECRET || "",
         redirectUrl: process.env.TWITCH_REDIRECT_URL || "",
-        defaultBotId: process.env.TWITCH_DEFAULT_BOT_I || ""
+        defaultBotId: process.env.TWITCH_DEFAULT_BOT_ID || ""
     }
 }
 

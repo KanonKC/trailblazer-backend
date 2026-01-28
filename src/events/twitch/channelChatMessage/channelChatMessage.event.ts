@@ -11,7 +11,6 @@ export default class TwitchChannelChatMessageEvent {
     }
 
     async handle(req: FastifyRequest, res: FastifyReply) {
-
         const body = req.body as any
 
         if (body.subscription.status === "webhook_callback_verification_pending") {

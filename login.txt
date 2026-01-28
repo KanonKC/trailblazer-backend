@@ -1,0 +1,1 @@
+https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=lnn0xjhakjukg3r77tgnjpquxt1y2t&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fapi%2Fv1%2Flogin&scope=channel%3Abot+user%3Aread%3Aemail+user%3Aread%3Achat+user%3Awrite%3Achat+user%3Abot+channel%3Aread%3Asubscriptions&state=c3ab8aa609ea11e793ae92361f002671

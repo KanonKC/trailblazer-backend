@@ -15,7 +15,6 @@ export default class WorkflowService {
         }
         const tsp = createESTransport("/webhook/v1/twitch/event-sub/chat-message-events")
         const eventSub = await twitchAppAPI.eventSub.subscribeToChannelChatMessageEvents(owner.twitch_id, tsp)
-        console.log(eventSub)
     }
 
     async execute(workflow: Workflow) {
