@@ -13,9 +13,13 @@ export function getUserFromRequest(req: FastifyRequest): { id: string } | null {
     if (!token) return null;
     try {
         const decoded = verifyToken(token);
-        if (typeof decoded === 'string') return null;
-        return decoded as { id: string };
+        if (typeof decoded === 'string') {
+            console.error('decoded is string', decoded)
+            return null;
+        };
+        return decoded as { id: string, twitchId: string };
     } catch (e) {
+        console.error('e', e)
         return null;
     }
 }

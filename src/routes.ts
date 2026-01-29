@@ -14,7 +14,6 @@ import multipart from "@fastify/multipart";
 import { FastifySSEPlugin } from "fastify-sse-v2";
 import FirstWordEventController from "./controllers/firstWord/firstWord.event.controller";
 
-
 const userRepository = new UserRepository();
 const firstWordRepository = new FirstWordRepository();
 const userService = new UserService(config, userRepository);

@@ -7,6 +7,7 @@ import { CreateUserRequest } from "@/repositories/user/request";
 import jwt from "jsonwebtoken";
 import redis from "@/libs/redis";
 import crypto from "crypto";
+import { User } from "generated/prisma/client";
 
 export default class UserService {
     private readonly cfg: Configurations
@@ -17,7 +18,7 @@ export default class UserService {
         this.userRepository = userRepository
     }
 
-    async login(request: LoginRequest): Promise<{ accessToken: string, refreshToken: string }> {
+    async login(request: LoginRequest): Promise<{ accessToken: string, refreshToken: string, user: User }> {
         const token = await exchangeCode(
             this.cfg.twitch.clientId,
             this.cfg.twitch.clientSecret,
@@ -53,6 +54,6 @@ export default class UserService {
 
         await redis.set(`refresh_token:${refreshToken}`, user.id, { EX: 60 * 60 * 24 * 7 });
 
-        return { accessToken, refreshToken };
+        return { accessToken, refreshToken, user };
     }
 }

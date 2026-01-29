@@ -1,8 +1,9 @@
 import UserService from "@/services/user/user.service";
 import { FastifyReply, FastifyRequest } from "fastify";
-import { LoginQuery } from "./request";
-import config from "@/config";
 import { verifyToken } from "../middleware";
+import { LoginQuery } from "./request";
+
+import logger from "@/libs/winston";
 
 export default class UserController {
 
@@ -18,8 +19,9 @@ export default class UserController {
             state: req.query.state,
             scope: req.query.scope.split(" ")
         }
+        logger.info("Login attempt initiated", { code: request.code });
         try {
-            const { accessToken, refreshToken } = await this.userService.login(request);
+            const { accessToken, refreshToken, user } = await this.userService.login(request);
 
             res.setCookie('accessToken', accessToken, {
                 path: '/',
@@ -37,7 +39,9 @@ export default class UserController {
                 maxAge: 60 * 60 * 24 * 7 // 7 days
             });
             res.redirect("http://localhost:3000"); // Redirect to frontend
+            logger.info("Login successful", user); // Note: accessToken might be long/sensitive, consider decoding ID or just saying success
         } catch (err) {
+            logger.error("Login failed", { error: err });
             res.status(400).send({ message: String(err) })
         }
     }
