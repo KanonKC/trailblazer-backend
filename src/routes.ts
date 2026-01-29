@@ -13,6 +13,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { FastifySSEPlugin } from "fastify-sse-v2";
 import FirstWordEventController from "./controllers/firstWord/firstWord.event.controller";
+import { authenticationRequired } from "./controllers/middleware";
 
 const userRepository = new UserRepository();
 const firstWordRepository = new FirstWordRepository();
@@ -46,7 +47,7 @@ server.post("/api/v1/refresh-token", userController.refresh.bind(userController)
 
 server.post("/api/v1/first-word", firstWordController.create.bind(firstWordController));
 server.get("/api/v1/first-word", firstWordController.get.bind(firstWordController));
-server.put("/api/v1/first-word", firstWordController.update.bind(firstWordController));
+server.put("/api/v1/first-word", { preHandler: [authenticationRequired] }, firstWordController.update.bind(firstWordController));
 server.post("/api/v1/first-word/audio", firstWordController.uploadAudio.bind(firstWordController));
 
 server.register(FastifySSEPlugin);
