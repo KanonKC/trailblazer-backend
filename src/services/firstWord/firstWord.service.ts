@@ -20,28 +20,32 @@ export default class FirstWordService {
         this.userRepository = userRepository;
     }
 
-    async create(request: CreateFirstWordRequest): Promise<void> {
+    async create(request: CreateFirstWordRequest): Promise<FirstWord> {
         const user = await this.userRepository.get(request.owner_id);
         if (!user) {
             throw new Error("User not found");
         }
 
         const userSubs = await twitchAppAPI.eventSub.getSubscriptionsForUser(user.twitch_id);
+        console.log('userSubs', userSubs.data.map(e => ({ ...e })))
         const enabledSubs = userSubs.data.filter(sub => sub.status === 'enabled')
+        console.log('enabledSubs', enabledSubs.map(e => ({ ...e })))
 
         const userChatMessageSub = enabledSubs.filter(sub => sub.type === 'channel.chat.message')
+        console.log('userChatMessageSub', userChatMessageSub.map(e => ({ ...e })))
         if (userChatMessageSub.length === 0) {
-            const tsp = createESTransport("/webhook/v1/twitch/event-sub/chat-message-events")
+            const tsp = createESTransport("/webhook/v1/twitch/event-sub/channel-chat-message")
             await twitchAppAPI.eventSub.subscribeToChannelChatMessageEvents(user.twitch_id, tsp)
         }
 
         const streamOnlineSubs = enabledSubs.filter(sub => sub.type === 'stream.online')
+        console.log('streamOnlineSubs', streamOnlineSubs.map(e => ({ ...e })))
         if (streamOnlineSubs.length === 0) {
-            const tsp = createESTransport("/webhook/v1/twitch/event-sub/stream-online-events")
+            const tsp = createESTransport("/webhook/v1/twitch/event-sub/stream-online")
             await twitchAppAPI.eventSub.subscribeToStreamOnlineEvents(user.twitch_id, tsp)
         }
 
-        await this.firstWordRepository.create(request);
+        return this.firstWordRepository.create(request);
     }
 
     async getByUserId(userId: string): Promise<FirstWord | null> {
@@ -73,6 +77,30 @@ export default class FirstWordService {
         await s3.uploadFile(file.buffer, audioKey, file.mimetype)
         await this.firstWordRepository.update(firstWord.id, { audio_key: audioKey })
         await redis.del(`first_word:owner_id:${userId}`)
+    }
+
+    async delete(userId: string): Promise<void> {
+        const firstWord = await this.firstWordRepository.getByOwnerId(userId);
+        if (!firstWord) {
+            // If already deleted or not found, just return (idempotent) or throw error. 
+            // Returning is safer for idempotency.
+            return;
+        }
+
+        if (firstWord.audio_key) {
+            try {
+                await s3.deleteFile(firstWord.audio_key);
+            } catch (error) {
+                console.error("Failed to delete audio file", error);
+                // Continue deletion even if S3 fails
+            }
+        }
+
+        await this.firstWordRepository.delete(firstWord.id);
+
+        // Clear caches
+        await redis.del(`first_word:owner_id:${userId}`);
+        await redis.del(`first_word:chatters:channel_id:${userId}`); // Assuming channel_id same as owner twitch_id logic elsewhere or close enough to clear
     }
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {

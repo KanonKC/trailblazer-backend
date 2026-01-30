@@ -63,7 +63,7 @@ model FirstWordChatter {
   twitch_chatter_id String
   twitch_channel_id String
   first_word_id     String
-  first_word        FirstWord @relation(fields: [first_word_id], references: [id])
+  first_word        FirstWord @relation(fields: [first_word_id], references: [id], onDelete: Cascade)
   created_at        DateTime  @default(now())
   updated_at        DateTime  @updatedAt
 

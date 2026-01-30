@@ -14,6 +14,7 @@ import multipart from "@fastify/multipart";
 import { FastifySSEPlugin } from "fastify-sse-v2";
 import FirstWordEventController from "./controllers/firstWord/firstWord.event.controller";
 import { authenticationRequired } from "./controllers/middleware";
+import TwitchStreamOnlineEvent from "./events/twitch/streamOnline/streamOnline.event";
 
 const userRepository = new UserRepository();
 const firstWordRepository = new FirstWordRepository();
@@ -21,8 +22,9 @@ const userService = new UserService(config, userRepository);
 const userController = new UserController(userService);
 const firstWordService = new FirstWordService(config, firstWordRepository, userRepository);
 const firstWordController = new FirstWordController(firstWordService);
-const chatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
+const twitchChannelChatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
 const firstWordEventController = new FirstWordEventController();
+const twitchStreamOnlineEvent = new TwitchStreamOnlineEvent(firstWordService);
 
 const server = fastify();
 
@@ -49,10 +51,12 @@ server.post("/api/v1/first-word", firstWordController.create.bind(firstWordContr
 server.get("/api/v1/first-word", firstWordController.get.bind(firstWordController));
 server.put("/api/v1/first-word", { preHandler: [authenticationRequired] }, firstWordController.update.bind(firstWordController));
 server.post("/api/v1/first-word/audio", firstWordController.uploadAudio.bind(firstWordController));
+server.delete("/api/v1/first-word", { preHandler: [authenticationRequired] }, firstWordController.delete.bind(firstWordController));
 
 server.register(FastifySSEPlugin);
 server.get("/api/v1/events/first-word/:userId", firstWordEventController.sse.bind(firstWordEventController));
 
-server.post("/webhook/v1/twitch/event-sub/chat-message-events", chatMessageEvent.handle.bind(chatMessageEvent))
+server.post("/webhook/v1/twitch/event-sub/channel-chat-message", twitchChannelChatMessageEvent.handle.bind(twitchChannelChatMessageEvent))
+server.post("/webhook/v1/twitch/event-sub/stream-online", twitchStreamOnlineEvent.handle.bind(twitchStreamOnlineEvent))
 
 export default server;

@@ -5,26 +5,40 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import logger from "@/libs/winston";
 
+const ACCESS_TOKEN_EXPIRY = "15m";
+const REFRESH_TOKEN_EXPIRY = 60 * 60 * 24 * 7; // 7 days (seconds)
+const COOKIE_MAX_AGE_ACCESS = 60 * 15; // 15 minutes (seconds)
+const COOKIE_MAX_AGE_REFRESH = 60 * 60 * 24 * 7; // 7 days (seconds)
+
+function extractToken(req: FastifyRequest): string | undefined {
+    if (req.cookies.accessToken) {
+        return req.cookies.accessToken;
+    }
+    if (req.headers.authorization) {
+        return req.headers.authorization.split(" ")[1];
+    }
+    return undefined;
+}
+
 export function verifyToken(token: string): string | jwt.JwtPayload {
     return jwt.verify(token, process.env.JWT_SECRET || "secret");
 }
 
 export function getUserFromRequest(req: FastifyRequest): { id: string } | null {
-    let token = req.cookies.accessToken;
-    console.log('middleware token', token)
-    if (!token) {
-        token = req.headers.authorization?.split(" ")[1];
-    }
+    const token = extractToken(req);
+    // logger.debug('getUserFromRequest token found', { tokenString: !!token });
+
     if (!token) return null;
+
     try {
         const decoded = verifyToken(token);
         if (typeof decoded === 'string') {
-            console.log('decoded is string', decoded)
+            logger.warn('getUserFromRequest: decoded token is string', { decoded });
             return null;
-        };
+        }
         return decoded as { id: string, twitchId: string };
     } catch (e) {
-        console.log('e', e)
+        // logger.error('getUserFromRequest error', { error: e });
         return null;
     }
 }
@@ -49,12 +63,12 @@ async function refresh(refreshToken: string) {
         const newAccessToken = jwt.sign(
             { id: user.id, username: user.username, displayName: user.display_name, avatarUrl: user.avatar_url, twitchId: user.twitch_id },
             process.env.JWT_SECRET || "secret",
-            { expiresIn: "15m" }
+            { expiresIn: ACCESS_TOKEN_EXPIRY }
         );
         const newRefreshToken = crypto.randomBytes(40).toString("hex");
 
         await redis.del(`refresh_token:${refreshToken}`);
-        await redis.set(`refresh_token:${newRefreshToken}`, user.id, { EX: 60 * 60 * 24 * 7 });
+        await redis.set(`refresh_token:${newRefreshToken}`, user.id, { EX: REFRESH_TOKEN_EXPIRY });
 
         return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (err) {
@@ -64,29 +78,25 @@ async function refresh(refreshToken: string) {
 }
 
 export async function authenticationRequired(req: FastifyRequest, res: FastifyReply) {
-    let token = req.cookies.accessToken;
-    console.log('middleware token', token)
-    if (!token) {
-        token = req.headers.authorization?.split(" ")[1];
-    }
+    let token = extractToken(req);
 
     if (!token) {
-
-        let newTokens: { accessToken: string, refreshToken: string };
         const refreshToken = req.cookies.refreshToken;
         if (!refreshToken) {
-            console.log('no token')
+            logger.debug('authenticationRequired: No access or refresh token');
             res.status(401).send({ error: "Unauthorized" });
             return;
-        };
+        }
+
         try {
-            newTokens = await refresh(refreshToken);
+            const newTokens = await refresh(refreshToken);
+
             res.setCookie('accessToken', newTokens.accessToken, {
                 path: '/',
                 httpOnly: true,
                 secure: true,
                 sameSite: 'lax',
-                maxAge: 60 * 15 // 15 minutes
+                maxAge: COOKIE_MAX_AGE_ACCESS
             });
 
             res.setCookie('refreshToken', newTokens.refreshToken, {
@@ -94,27 +104,31 @@ export async function authenticationRequired(req: FastifyRequest, res: FastifyRe
                 httpOnly: true,
                 secure: true,
                 sameSite: 'lax',
-                maxAge: 60 * 60 * 24 * 7 // 7 days
+                maxAge: COOKIE_MAX_AGE_REFRESH
             });
+
+            token = newTokens.accessToken;
         } catch (e) {
-            console.log('e', e)
+            logger.error('authenticationRequired: Refresh failed', { error: e });
+            console.log('1', e);
             res.status(401).send({ error: "Unauthorized" });
             return;
         }
-
-        token = newTokens.accessToken;
     }
 
     try {
-        const decoded = verifyToken(token);
+        const decoded = verifyToken(token!); // Token is guaranteed to be string here because of logic above
         if (typeof decoded === 'string') {
-            console.log('decoded is string', decoded)
+            logger.warn('authenticationRequired: decoded token is string', { decoded });
+            console.log('2');
             res.status(401).send({ error: "Unauthorized" });
             return;
-        };
+        }
+        console.log('4');
         return decoded as { id: string, twitchId: string };
     } catch (e) {
-        console.log('e', e)
+        logger.error('authenticationRequired: Token verification failed', { error: e });
+        console.log('3', e);
         res.status(401).send({ error: "Unauthorized" });
         return;
     }

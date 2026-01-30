@@ -43,8 +43,21 @@ export default class FirstWordController {
     async create(req: FastifyRequest, res: FastifyReply) {
         try {
             const request = req.body as CreateFirstWordRequest;
-            await this.firstWordService.create(request);
-            res.status(201).send();
+            const created = await this.firstWordService.create(request);
+            res.status(201).send(created);
+        } catch (error) {
+            console.error(error);
+            res.status(500).send({ message: "Internal Server Error" });
+        }
+    }
+
+    async delete(req: FastifyRequest, res: FastifyReply) {
+        const user = getUserFromRequest(req);
+        if (!user) return res.status(401).send({ message: "Unauthorized" });
+
+        try {
+            await this.firstWordService.delete(user.id);
+            res.status(204).send();
         } catch (error) {
             console.error(error);
             res.status(500).send({ message: "Internal Server Error" });

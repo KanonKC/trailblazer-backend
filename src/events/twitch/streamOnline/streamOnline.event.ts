@@ -10,6 +10,7 @@ export default class TwitchStreamOnlineEvent {
     }
 
     async handle(req: FastifyRequest, res: FastifyReply) {
+        console.log('Twitch Stream Online Event', req.body)
 
         const body = req.body as any
 
