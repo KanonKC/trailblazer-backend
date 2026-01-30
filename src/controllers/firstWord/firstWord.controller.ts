@@ -1,13 +1,16 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import FirstWordService from "@/services/firstWord/firstWord.service";
 import { CreateFirstWordRequest, UpdateFirstWordRequest } from "@/repositories/firstWord/request";
+import FirstWordEventController from "./firstWord.event.controller";
 import { getUserFromRequest } from "../middleware";
 
 export default class FirstWordController {
     private firstWordService: FirstWordService;
+    private firstWordEventController: FirstWordEventController;
 
-    constructor(firstWordService: FirstWordService) {
+    constructor(firstWordService: FirstWordService, firstWordEventController: FirstWordEventController) {
         this.firstWordService = firstWordService;
+        this.firstWordEventController = firstWordEventController;
     }
 
     async get(req: FastifyRequest, res: FastifyReply) {
@@ -58,6 +61,20 @@ export default class FirstWordController {
         try {
             await this.firstWordService.delete(user.id);
             res.status(204).send();
+        } catch (error) {
+            console.error(error);
+            res.status(500).send({ message: "Internal Server Error" });
+        }
+    }
+
+    async refreshKey(req: FastifyRequest, res: FastifyReply) {
+        const user = getUserFromRequest(req);
+        if (!user) return res.status(401).send({ message: "Unauthorized" });
+
+        try {
+            const updated = await this.firstWordService.refreshOverlayKey(user.id);
+            this.firstWordEventController.disconnectUser(user.id);
+            res.send(updated);
         } catch (error) {
             console.error(error);
             res.status(500).send({ message: "Internal Server Error" });

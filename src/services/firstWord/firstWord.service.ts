@@ -1,5 +1,6 @@
 import Configurations from "@/config/index";
 import { TwitchChannelChatMessageEventRequest } from "@/events/twitch/channelChatMessage/request";
+import { randomBytes } from "crypto";
 import { TwitchStreamOnlineEventRequest } from "@/events/twitch/streamOnline/request";
 import s3 from "@/libs/awsS3";
 import redis, { TTL, publisher } from "@/libs/redis";
@@ -45,7 +46,10 @@ export default class FirstWordService {
             await twitchAppAPI.eventSub.subscribeToStreamOnlineEvents(user.twitch_id, tsp)
         }
 
-        return this.firstWordRepository.create(request);
+        return this.firstWordRepository.create({
+            ...request,
+            overlay_key: randomBytes(16).toString("hex")
+        });
     }
 
     async getByUserId(userId: string): Promise<FirstWord | null> {
@@ -101,6 +105,41 @@ export default class FirstWordService {
         // Clear caches
         await redis.del(`first_word:owner_id:${userId}`);
         await redis.del(`first_word:chatters:channel_id:${userId}`); // Assuming channel_id same as owner twitch_id logic elsewhere or close enough to clear
+    }
+
+    async refreshOverlayKey(userId: string): Promise<FirstWord> {
+        const firstWord = await this.firstWordRepository.getByOwnerId(userId);
+        if (!firstWord) {
+            throw new Error("First word config not found");
+        }
+
+        const newKey = randomBytes(16).toString("hex");
+        const updated = await this.firstWordRepository.update(firstWord.id, { overlay_key: newKey });
+
+        await redis.del(`first_word:owner_id:${userId}`);
+        return updated;
+    }
+
+    async validateOverlayAccess(userId: string, key: string): Promise<boolean> {
+        // We can use cache here for performance since this hits frequently on connection
+        const firstWordCacheKey = `first_word:owner_id:${userId}`
+        let firstWord: FirstWord | null = null
+
+        const firstWordCache = await redis.get(firstWordCacheKey)
+        if (firstWordCache) {
+            firstWord = JSON.parse(firstWordCache)
+        } else {
+            firstWord = await this.firstWordRepository.getByOwnerId(userId);
+            if (firstWord) {
+                redis.set(firstWordCacheKey, JSON.stringify(firstWord), TTL.TWO_HOURS)
+            }
+        }
+
+        if (!firstWord) return false;
+
+        // Use constant time comparison if possible, but for UUIDs/strings here standard checks are okay 
+        // as long as we handle missing keys.
+        return firstWord.overlay_key === key;
     }
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {

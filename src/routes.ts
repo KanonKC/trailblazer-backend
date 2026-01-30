@@ -21,9 +21,9 @@ const firstWordRepository = new FirstWordRepository();
 const userService = new UserService(config, userRepository);
 const userController = new UserController(userService);
 const firstWordService = new FirstWordService(config, firstWordRepository, userRepository);
-const firstWordController = new FirstWordController(firstWordService);
+const firstWordEventController = new FirstWordEventController(firstWordService);
+const firstWordController = new FirstWordController(firstWordService, firstWordEventController);
 const twitchChannelChatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
-const firstWordEventController = new FirstWordEventController();
 const twitchStreamOnlineEvent = new TwitchStreamOnlineEvent(firstWordService);
 
 const server = fastify();
@@ -51,6 +51,7 @@ server.post("/api/v1/first-word", firstWordController.create.bind(firstWordContr
 server.get("/api/v1/first-word", firstWordController.get.bind(firstWordController));
 server.put("/api/v1/first-word", { preHandler: [authenticationRequired] }, firstWordController.update.bind(firstWordController));
 server.post("/api/v1/first-word/audio", firstWordController.uploadAudio.bind(firstWordController));
+server.post("/api/v1/first-word/refresh-key", { preHandler: [authenticationRequired] }, firstWordController.refreshKey.bind(firstWordController));
 server.delete("/api/v1/first-word", { preHandler: [authenticationRequired] }, firstWordController.delete.bind(firstWordController));
 
 server.register(FastifySSEPlugin);
