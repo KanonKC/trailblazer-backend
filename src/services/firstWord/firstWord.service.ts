@@ -6,9 +6,10 @@ import s3 from "@/libs/awsS3";
 import redis, { TTL, publisher } from "@/libs/redis";
 import { createESTransport, twitchAppAPI } from "@/libs/twurple";
 import FirstWordRepository from "@/repositories/firstWord/firstWord.repository";
-import { CreateFirstWordRequest, UpdateFirstWordRequest } from "@/repositories/firstWord/request";
+import { UpdateFirstWordRequest } from "@/repositories/firstWord/request";
 import UserRepository from "@/repositories/user/user.repository";
 import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
+import { CreateFirstWordRequest } from "./request";
 
 export default class FirstWordService {
     private readonly cfg: Configurations
@@ -144,25 +145,27 @@ export default class FirstWordService {
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {
 
+        // Check if user is bot itself
         if (e.chatter_user_id === this.cfg.twitch.defaultBotId) {
             return
         }
 
-        // TODO: Uncomment
-        // let chatters: FirstWordChatter[] = []
-        // const chattersCacheKey = `first_word:chatters:channel_id:${e.broadcaster_user_id}`
-        // const chattersCache = await redis.get(chattersCacheKey)
+        let chatters: FirstWordChatter[] = []
+        const chattersCacheKey = `first_word:chatters:channel_id:${e.broadcaster_user_id}`
+        const chattersCache = await redis.get(chattersCacheKey)
 
-        // if (chattersCache) {
-        //     chatters = JSON.parse(chattersCache)
-        // } else {
-        //     chatters = await this.firstWordRepository.getChattersByChannelId(e.broadcaster_user_id);
-        //     redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
-        // }
-        // const chatter = chatters.find(chatter => chatter.twitch_chatter_id === e.chatter_user_id)
-        // if (chatter) {
-        //     return
-        // }
+        if (chattersCache) {
+            chatters = JSON.parse(chattersCache)
+        } else {
+            chatters = await this.firstWordRepository.getChattersByChannelId(e.broadcaster_user_id);
+            redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
+        }
+        const chatter = chatters.find(chatter => chatter.twitch_chatter_id === e.chatter_user_id)
+
+        // Check if user is already greeted and not a test user
+        if (chatter && e.chatter_user_id !== "0") {
+            return
+        }
 
         let user: User | null = null
         const userCacheKey = `user:twitch_id:${e.broadcaster_user_id}`
@@ -196,6 +199,7 @@ export default class FirstWordService {
             throw new Error("First word not found");
         }
 
+        // Check if first word is enabled
         if (!firstWord.enabled) {
             return
         }
@@ -229,21 +233,23 @@ export default class FirstWordService {
             console.log('published')
         }
 
-        // TODO: Uncomment
-        // await this.firstWordRepository.addChatter({
-        //     first_word_id: firstWord.id,
-        //     twitch_chatter_id: e.chatter_user_id,
-        //     twitch_channel_id: e.broadcaster_user_id,
-        // })
-        // chatters.push({
-        //     id: 0,
-        //     first_word_id: firstWord.id,
-        //     twitch_chatter_id: e.chatter_user_id,
-        //     twitch_channel_id: e.broadcaster_user_id,
-        //     created_at: new Date(),
-        //     updated_at: new Date()
-        // })
-        // redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
+        // Add chatter to database if not test user
+        if (e.chatter_user_id !== "0") {
+            await this.firstWordRepository.addChatter({
+                first_word_id: firstWord.id,
+                twitch_chatter_id: e.chatter_user_id,
+                twitch_channel_id: e.broadcaster_user_id,
+            })
+            chatters.push({
+                id: 0,
+                first_word_id: firstWord.id,
+                twitch_chatter_id: e.chatter_user_id,
+                twitch_channel_id: e.broadcaster_user_id,
+                created_at: new Date(),
+                updated_at: new Date()
+            })
+            redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
+        }
     }
 
     async resetChatters(e: TwitchStreamOnlineEventRequest): Promise<void> {

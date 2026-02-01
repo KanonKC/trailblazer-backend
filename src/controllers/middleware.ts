@@ -4,6 +4,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import logger from "@/libs/winston";
+import config from "@/config";
 
 const ACCESS_TOKEN_EXPIRY = "15m";
 const REFRESH_TOKEN_EXPIRY = 60 * 60 * 24 * 7; // 7 days (seconds)
@@ -21,7 +22,7 @@ function extractToken(req: FastifyRequest): string | undefined {
 }
 
 export function verifyToken(token: string): string | jwt.JwtPayload {
-    return jwt.verify(token, process.env.JWT_SECRET || "secret");
+    return jwt.verify(token, config.jwtSecret);
 }
 
 export function getUserFromRequest(req: FastifyRequest): { id: string } | null {
@@ -62,7 +63,7 @@ async function refresh(refreshToken: string) {
 
         const newAccessToken = jwt.sign(
             { id: user.id, username: user.username, displayName: user.display_name, avatarUrl: user.avatar_url, twitchId: user.twitch_id },
-            process.env.JWT_SECRET || "secret",
+            config.jwtSecret,
             { expiresIn: ACCESS_TOKEN_EXPIRY }
         );
         const newRefreshToken = crypto.randomBytes(40).toString("hex");

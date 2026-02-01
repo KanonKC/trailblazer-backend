@@ -2,25 +2,33 @@ import UserService from "@/services/user/user.service";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { verifyToken } from "../middleware";
 import { LoginQuery } from "./request";
+import { loginSchema } from "./schemas";
+import { z } from "zod";
 
 import logger from "@/libs/winston";
+import Configurations from "@/config/index";
 
 export default class UserController {
 
+    private readonly cfg: Configurations;
     private readonly userService: UserService;
 
-    constructor(userService: UserService) {
+    constructor(cfg: Configurations, userService: UserService) {
+        this.cfg = cfg;
         this.userService = userService;
     }
 
     async login(req: FastifyRequest<{ Querystring: LoginQuery }>, res: FastifyReply) {
-        const request = {
-            code: req.query.code,
-            state: req.query.state,
-            scope: req.query.scope.split(" ")
-        }
-        logger.info("Login attempt initiated", { code: request.code });
         try {
+            const query = loginSchema.parse(req.query);
+            const request = {
+                code: query.code,
+                state: query.state,
+                scope: query.scope.split(" ")
+            };
+
+            logger.info("Login attempt initiated", { code: request.code });
+
             const { accessToken, refreshToken, user } = await this.userService.login(request);
 
             res.setCookie('accessToken', accessToken, {
@@ -38,9 +46,13 @@ export default class UserController {
                 sameSite: 'lax',
                 maxAge: 60 * 60 * 24 * 7 // 7 days
             });
-            res.redirect("http://localhost:3000"); // Redirect to frontend
+            res.redirect(this.cfg.frontendOrigin); // Redirect to frontend
             logger.info("Login successful", user); // Note: accessToken might be long/sensitive, consider decoding ID or just saying success
         } catch (err) {
+            if (err instanceof z.ZodError) {
+                logger.error("Login validation failed", { error: err.message });
+                return res.status(400).send({ message: "Validation Error", errors: err.message });
+            }
             logger.error("Login failed", { error: err });
             res.status(400).send({ message: String(err) })
         }

@@ -5,6 +5,9 @@ configDotenv()
 
 const config: Configurations = {
     origin: process.env.ORIGIN || "",
+    jwtSecret: process.env.JWT_SECRET || "",
+    cookieSecret: process.env.COOKIE_SECRET || "",
+    frontendOrigin: process.env.FRONTEND_ORIGIN || "",
     twitch: {
         clientId: process.env.TWITCH_CLIENT_ID || "",
         clientSecret: process.env.TWITCH_CLIENT_SECRET || "",

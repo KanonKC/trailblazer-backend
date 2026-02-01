@@ -1,8 +1,9 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import FirstWordService from "@/services/firstWord/firstWord.service";
-import { CreateFirstWordRequest, UpdateFirstWordRequest } from "@/repositories/firstWord/request";
 import FirstWordEventController from "./firstWord.event.controller";
 import { getUserFromRequest } from "../middleware";
+import { createFirstWordSchema, updateFirstWordSchema } from "./schemas";
+import { z } from "zod";
 
 export default class FirstWordController {
     private firstWordService: FirstWordService;
@@ -34,21 +35,30 @@ export default class FirstWordController {
         if (!user) return res.status(401).send({ message: "Unauthorized" });
 
         try {
-            const request = req.body as UpdateFirstWordRequest;
+            const request = updateFirstWordSchema.parse(req.body);
             const updated = await this.firstWordService.update(user.id, request);
             res.send(updated);
         } catch (error) {
+            if (error instanceof z.ZodError) {
+                return res.status(400).send({ message: "Validation Error", errors: error.message });
+            }
             console.error(error);
             res.status(500).send({ message: "Internal Server Error" });
         }
     }
 
     async create(req: FastifyRequest, res: FastifyReply) {
+        const user = getUserFromRequest(req);
+        if (!user) return res.status(401).send({ message: "Unauthorized" });
+
         try {
-            const request = req.body as CreateFirstWordRequest;
+            const request = createFirstWordSchema.parse(req.body);
             const created = await this.firstWordService.create(request);
             res.status(201).send(created);
         } catch (error) {
+            if (error instanceof z.ZodError) {
+                return res.status(400).send({ message: "Validation Error", errors: error.issues });
+            }
             console.error(error);
             res.status(500).send({ message: "Internal Server Error" });
         }

@@ -19,8 +19,8 @@ import TwitchStreamOnlineEvent from "./events/twitch/streamOnline/streamOnline.e
 const userRepository = new UserRepository();
 const firstWordRepository = new FirstWordRepository();
 const userService = new UserService(config, userRepository);
-const userController = new UserController(userService);
 const firstWordService = new FirstWordService(config, firstWordRepository, userRepository);
+const userController = new UserController(config, userService);
 const firstWordEventController = new FirstWordEventController(firstWordService);
 const firstWordController = new FirstWordController(firstWordService, firstWordEventController);
 const twitchChannelChatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
@@ -29,7 +29,7 @@ const twitchStreamOnlineEvent = new TwitchStreamOnlineEvent(firstWordService);
 const server = fastify();
 
 server.register(cors, {
-    origin: ["http://localhost:3000"],
+    origin: [config.frontendOrigin],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 })
@@ -37,7 +37,7 @@ server.register(cors, {
 server.register(multipart)
 
 server.register(cookie, {
-    secret: "some-secret-key-that-should-be-in-env", // TODO: Move to env
+    secret: config.cookieSecret,
     parseOptions: {}
 });
 
@@ -49,10 +49,10 @@ server.post("/api/v1/refresh-token", userController.refresh.bind(userController)
 
 server.post("/api/v1/first-word", firstWordController.create.bind(firstWordController));
 server.get("/api/v1/first-word", firstWordController.get.bind(firstWordController));
-server.put("/api/v1/first-word", { preHandler: [authenticationRequired] }, firstWordController.update.bind(firstWordController));
+server.put("/api/v1/first-word", firstWordController.update.bind(firstWordController));
 server.post("/api/v1/first-word/audio", firstWordController.uploadAudio.bind(firstWordController));
-server.post("/api/v1/first-word/refresh-key", { preHandler: [authenticationRequired] }, firstWordController.refreshKey.bind(firstWordController));
-server.delete("/api/v1/first-word", { preHandler: [authenticationRequired] }, firstWordController.delete.bind(firstWordController));
+server.post("/api/v1/first-word/refresh-key", firstWordController.refreshKey.bind(firstWordController));
+server.delete("/api/v1/first-word", firstWordController.delete.bind(firstWordController));
 
 server.register(FastifySSEPlugin);
 server.get("/api/v1/events/first-word/:userId", firstWordEventController.sse.bind(firstWordEventController));

@@ -47,7 +47,7 @@ export default class UserService {
 
         const accessToken = jwt.sign(
             { id: user.id, username: user.username, displayName: user.display_name, avatarUrl: user.avatar_url, twitchId: user.twitch_id },
-            process.env.JWT_SECRET || "secret",
+            this.cfg.jwtSecret,
             { expiresIn: "15m" }
         );
         const refreshToken = crypto.randomBytes(40).toString("hex");
@@ -71,7 +71,7 @@ export default class UserService {
 
         const newAccessToken = jwt.sign(
             { id: user.id, username: user.username, displayName: user.display_name, avatarUrl: user.avatar_url, twitchId: user.twitch_id },
-            process.env.JWT_SECRET || "secret",
+            this.cfg.jwtSecret,
             { expiresIn: "15m" }
         );
         const newRefreshToken = crypto.randomBytes(40).toString("hex");

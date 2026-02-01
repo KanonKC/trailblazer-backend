@@ -1,5 +1,8 @@
 export default interface Configurations {
     origin: string;
+    jwtSecret: string;
+    cookieSecret: string;
+    frontendOrigin: string;
     twitch: {
         clientId: string;
         clientSecret: string;
