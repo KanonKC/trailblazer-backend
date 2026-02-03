@@ -49,6 +49,7 @@ export default class FirstWordService {
 
         return this.firstWordRepository.create({
             ...request,
+            reply_message: "สวัสดี {{user_name}} ยินดีต้อนรับเข้าสู่สตรีม!",
             overlay_key: randomBytes(16).toString("hex")
         });
     }
