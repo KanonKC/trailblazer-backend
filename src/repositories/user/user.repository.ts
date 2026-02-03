@@ -1,5 +1,5 @@
 import { User } from "../../../generated/prisma/client";
-import { CreateUserRequest } from "./request";
+import { CreateUserRequest, UpdateUserRequest } from "./request";
 import { prisma } from "@/libs/prisma";
 
 export default class UserRepository {
@@ -25,8 +25,19 @@ export default class UserRepository {
         return prisma.user.findUnique({ where: { id } })
     }
 
+    async update(id: string, request: UpdateUserRequest): Promise<User> {
+        return prisma.user.update({
+            where: { id },
+            data: request
+        })
+    }
+
     async getByTwitchId(twitchId: string): Promise<User | null> {
         return prisma.user.findUnique({ where: { twitch_id: twitchId } })
+    }
+
+    async getByRefreshToken(refreshToken: string): Promise<User | null> {
+        return prisma.user.findUnique({ where: { refresh_token: refreshToken } })
     }
 
 }

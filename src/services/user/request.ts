@@ -3,3 +3,11 @@ export interface LoginRequest {
     state: string;
     scope: string[];
 }
+
+export interface JWTPayload {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    twitchId: string;
+}
