@@ -10,17 +10,17 @@ export default class SystemController {
     }
 
     async health(_: FastifyRequest, res: FastifyReply) {
-        logger.info("Health check initiated");
+        logger.info("controller.system.health: Health check initiated");
         const health = await this.systemService.getHealth();
 
         const isHealthy = health.database && Object.values(health.libs).every(x => x);
 
         if (!isHealthy) {
-            logger.error("Health check failed", { health });
+            logger.error("controller.system.health: Health check failed", { health });
             return res.status(503).send(health);
         }
 
-        logger.info("Health check passed", { health });
+        logger.info("system.controller.health: Health check passed", { health });
         res.send(health);
     }
 }

@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { subscriber } from "@/libs/redis";
 import FirstWordService from "@/services/firstWord/firstWord.service";
+import logger from "@/libs/winston";
 
 export default class FirstWordEventController {
     private firstWordService: FirstWordService;
@@ -16,11 +17,11 @@ export default class FirstWordEventController {
         const { userId } = req.params;
         const { key } = req.query;
 
-        console.log("SSE Connection attempt:", userId, key);
+        logger.info("controller.firstWordEvent.sse: SSE connection attempt", { userId });
 
         const isValid = await this.firstWordService.validateOverlayAccess(userId, key);
         if (!isValid) {
-            console.log("Invalid key for SSE:", userId);
+            logger.warn("controller.firstWordEvent.sse: Invalid key for SSE connection", { userId });
             // End response immediately
             res.raw.end();
             return;
@@ -65,7 +66,7 @@ export default class FirstWordEventController {
     public disconnectUser(userId: string) {
         const userConns = this.connections.get(userId);
         if (userConns) {
-            console.log(`Disconnecting ${userConns.size} clients for user ${userId}`);
+            logger.info("controller.firstWordEvent.disconnectUser: Disconnecting clients", { userId, clientCount: userConns.size });
             for (const res of userConns) {
                 res.raw.end();
             }
