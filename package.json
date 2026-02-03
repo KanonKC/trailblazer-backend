@@ -21,8 +21,8 @@
     "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^9.4.0",
     "@newrelic/winston-enricher": "^4.0.1",
-    "@prisma/adapter-pg": "^7.2.0",
-    "@prisma/client": "^7.2.0",
+    "@prisma/adapter-pg": "7.2.0",
+    "@prisma/client": "7.2.0",
     "@twurple/api": "^8.0.3",
     "@twurple/auth": "^8.0.3",
     "@types/jsonwebtoken": "^9.0.10",
@@ -42,7 +42,7 @@
     "@types/node": "^24.10.9",
     "@types/pg": "^8.16.0",
     "nodemon": "^3.1.10",
-    "prisma": "^7.2.0",
+    "prisma": "7.2.0",
     "tsc-alias": "^1.8.16",
     "typescript": "^5.9.3"
   }

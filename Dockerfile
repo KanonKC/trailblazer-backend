@@ -8,7 +8,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
 
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -26,7 +26,7 @@ ENV NODE_ENV=production
 
 # Install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install
 
 # Copy built assets and config
 COPY --from=builder /app/build ./build
