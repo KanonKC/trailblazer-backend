@@ -12,6 +12,7 @@ import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
 import { CreateFirstWordRequest } from "./request";
 import AuthService from "../auth/auth.service";
 import { HelixSendChatMessageParams } from "@twurple/api";
+import { mapMessageVariables } from "@/utils/message";
 
 export default class FirstWordService {
     private readonly cfg: Configurations
@@ -223,9 +224,7 @@ export default class FirstWordService {
                 "{{message_text}}": e.message.text,
                 "{{color}}": e.color,
             }
-            for (const [key, value] of Object.entries(replaceMap)) {
-                message = message.replace(new RegExp(key, "g"), value)
-            }
+            message = mapMessageVariables(message, replaceMap)
             console.log('send chat message', e.broadcaster_user_id, message)
             await twitchAppAPI.chat.sendChatMessageAsApp(senderId, e.broadcaster_user_id, message)
         }
