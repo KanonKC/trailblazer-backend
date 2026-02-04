@@ -1,7 +1,10 @@
 import { createClient, SetOptions } from "redis";
 
 const TTL: { [time: string]: SetOptions } = {
-    TWO_HOURS: { expiration: { type: "EX", value: 60 * 60 * 2 } }
+    TWO_HOURS: { expiration: { type: "EX", value: 60 * 60 * 2 } },
+    ONE_WEEK: { expiration: { type: "EX", value: 60 * 60 * 24 * 7 } },
+    ONE_DAY: { expiration: { type: "EX", value: 60 * 60 * 24 } },
+    QUARTER_HOUR: { expiration: { type: "EX", value: 60 * 15 } }
 }
 
 const redis = createClient({

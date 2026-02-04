@@ -18,9 +18,20 @@ model User {
   avatar_url   String?
   created_at   DateTime   @default(now())
   updated_at   DateTime   @updatedAt
+  auth         Auth?
   workflows    Workflow[]
   triggers     Trigger[]
   firstWord    FirstWord?
+}
+
+model Auth {
+  id                      String    @id @default(cuid())
+  user_id                 String    @unique
+  user                    User      @relation(fields: [user_id], references: [id])
+  twitch_refresh_token    String?   @unique
+  twitch_token_expires_at DateTime?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
 }
 
 model Workflow {
@@ -50,6 +61,7 @@ model FirstWord {
   twitch_id           String             @unique
   enabled             Boolean            @default(true)
   reply_message       String?
+  twitch_bot_id       String?
   owner_id            String             @unique
   owner               User               @relation(fields: [owner_id], references: [id])
   first_word_chatters FirstWordChatter[]

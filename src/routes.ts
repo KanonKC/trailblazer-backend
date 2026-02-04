@@ -17,19 +17,30 @@ import { authenticationRequired } from "./controllers/middleware";
 import TwitchStreamOnlineEvent from "./events/twitch/streamOnline/streamOnline.event";
 import SystemService from "./services/system/system.service";
 import SystemController from "./controllers/system/system.controller";
+import AuthService from "./services/auth/auth.service";
+import AuthRepository from "./repositories/auth/auth.repository";
 
+// Repository Layer
 const userRepository = new UserRepository();
 const firstWordRepository = new FirstWordRepository();
-const userService = new UserService(config, userRepository);
-const firstWordService = new FirstWordService(config, firstWordRepository, userRepository);
+const authRepository = new AuthRepository();
+
+// Service Layer
+const systemService = new SystemService();
+const userService = new UserService(config, userRepository, authRepository);
+const authService = new AuthService(config, authRepository, userRepository);
+const firstWordService = new FirstWordService(config, firstWordRepository, userRepository, authService);
+
+// Controller Layer
+const systemController = new SystemController(systemService);
 const userController = new UserController(config, userService);
 const firstWordEventController = new FirstWordEventController(firstWordService);
 const firstWordController = new FirstWordController(firstWordService, firstWordEventController);
+
+// Event Layer
 const twitchChannelChatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
 const twitchStreamOnlineEvent = new TwitchStreamOnlineEvent(firstWordService);
 
-const systemService = new SystemService();
-const systemController = new SystemController(systemService);
 
 const server = fastify();
 

@@ -10,16 +10,20 @@ import { UpdateFirstWordRequest } from "@/repositories/firstWord/request";
 import UserRepository from "@/repositories/user/user.repository";
 import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
 import { CreateFirstWordRequest } from "./request";
+import AuthService from "../auth/auth.service";
+import { HelixSendChatMessageParams } from "@twurple/api";
 
 export default class FirstWordService {
     private readonly cfg: Configurations
     private readonly firstWordRepository: FirstWordRepository;
     private readonly userRepository: UserRepository;
+    private readonly authService: AuthService;
 
-    constructor(cfg: Configurations, firstWordRepository: FirstWordRepository, userRepository: UserRepository) {
+    constructor(cfg: Configurations, firstWordRepository: FirstWordRepository, userRepository: UserRepository, authService: AuthService) {
         this.cfg = cfg;
         this.firstWordRepository = firstWordRepository;
         this.userRepository = userRepository;
+        this.authService = authService;
     }
 
     async create(request: CreateFirstWordRequest): Promise<FirstWord> {
@@ -49,6 +53,7 @@ export default class FirstWordService {
 
         return this.firstWordRepository.create({
             ...request,
+            reply_message: "สวัสดี {{user_name}} ยินดีต้อนรับเข้าสู่สตรีม!",
             overlay_key: randomBytes(16).toString("hex")
         });
     }
@@ -145,28 +150,6 @@ export default class FirstWordService {
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {
 
-        // Check if user is bot itself
-        if (e.chatter_user_id === this.cfg.twitch.defaultBotId) {
-            return
-        }
-
-        let chatters: FirstWordChatter[] = []
-        const chattersCacheKey = `first_word:chatters:channel_id:${e.broadcaster_user_id}`
-        const chattersCache = await redis.get(chattersCacheKey)
-
-        if (chattersCache) {
-            chatters = JSON.parse(chattersCache)
-        } else {
-            chatters = await this.firstWordRepository.getChattersByChannelId(e.broadcaster_user_id);
-            redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
-        }
-        const chatter = chatters.find(chatter => chatter.twitch_chatter_id === e.chatter_user_id)
-
-        // Check if user is already greeted and not a test user
-        if (chatter && e.chatter_user_id !== "0") {
-            return
-        }
-
         let user: User | null = null
         const userCacheKey = `user:twitch_id:${e.broadcaster_user_id}`
         const userCache = await redis.get(userCacheKey)
@@ -204,24 +187,50 @@ export default class FirstWordService {
             return
         }
 
-        let message = firstWord.reply_message
+        const senderId = firstWord.twitch_bot_id || this.cfg.twitch.defaultBotId
 
-        const replaceMap = {
-            "{{user_login}}": e.chatter_user_login,
-            "{{user_name}}": e.chatter_user_name,
-            "{{broadcaster_user_login}}": e.broadcaster_user_login,
-            "{{broadcaster_user_name}}": e.broadcaster_user_name,
-            "{{message_text}}": e.message.text,
-            "{{color}}": e.color,
+        // Check if user is bot itself
+        if (e.chatter_user_id === senderId) {
+            return
         }
 
+        let chatters: FirstWordChatter[] = []
+        const chattersCacheKey = `first_word:chatters:channel_id:${e.broadcaster_user_id}`
+        const chattersCache = await redis.get(chattersCacheKey)
+
+        if (chattersCache) {
+            chatters = JSON.parse(chattersCache)
+        } else {
+            chatters = await this.firstWordRepository.getChattersByChannelId(e.broadcaster_user_id);
+            redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
+        }
+        const chatter = chatters.find(chatter => chatter.twitch_chatter_id === e.chatter_user_id)
+
+        // Check if user is already greeted and not a test user
+        if (chatter && e.chatter_user_id !== "0") {
+            return
+        }
+
+        let message = firstWord.reply_message
+
+        // If replay message does not empty -> Send message to Twitch
         if (message) {
+            const replaceMap = {
+                "{{user_login}}": e.chatter_user_login,
+                "{{user_name}}": e.chatter_user_name,
+                "{{broadcaster_user_login}}": e.broadcaster_user_login,
+                "{{broadcaster_user_name}}": e.broadcaster_user_name,
+                "{{message_text}}": e.message.text,
+                "{{color}}": e.color,
+            }
             for (const [key, value] of Object.entries(replaceMap)) {
                 message = message.replace(new RegExp(key, "g"), value)
             }
-            await twitchAppAPI.chat.sendChatMessageAsApp(this.cfg.twitch.defaultBotId, e.broadcaster_user_id, message)
+            console.log('send chat message', e.broadcaster_user_id, message)
+            await twitchAppAPI.chat.sendChatMessageAsApp(senderId, e.broadcaster_user_id, message)
         }
 
+        // If audio key does not empty -> Send audio to overlay
         if (firstWord.audio_key) {
             console.log('audio_key', firstWord.audio_key)
             const url = await s3.getSignedURL(firstWord.audio_key, { expiresIn: 3600 });
@@ -233,7 +242,7 @@ export default class FirstWordService {
             console.log('published')
         }
 
-        // Add chatter to database if not test user
+        // Add chatter to database if not test user to prevent duplicate greetings
         if (e.chatter_user_id !== "0") {
             await this.firstWordRepository.addChatter({
                 first_word_id: firstWord.id,
