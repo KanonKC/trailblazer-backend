@@ -1,21 +1,24 @@
-import { exchangeCode, getTokenInfo } from "@twurple/auth";
 import Configurations from "@/config/index";
-import { LoginRequest } from "./request";
+import redis, { TTL } from "@/libs/redis";
 import { twitchAppAPI } from "@/libs/twurple";
-import UserRepository from "@/repositories/user/user.repository";
+import AuthRepository from "@/repositories/auth/auth.repository";
 import { CreateUserRequest } from "@/repositories/user/request";
-import jwt from "jsonwebtoken";
-import redis from "@/libs/redis";
+import UserRepository from "@/repositories/user/user.repository";
+import { exchangeCode, getTokenInfo } from "@twurple/auth";
 import crypto from "crypto";
 import { User } from "generated/prisma/client";
+import jwt from "jsonwebtoken";
+import { LoginRequest } from "./request";
 
 export default class UserService {
     private readonly cfg: Configurations
     private readonly userRepository: UserRepository
+    private readonly authRepository: AuthRepository
 
-    constructor(cfg: Configurations, userRepository: UserRepository) {
+    constructor(cfg: Configurations, userRepository: UserRepository, authRepository: AuthRepository) {
         this.cfg = cfg
         this.userRepository = userRepository
+        this.authRepository = authRepository
     }
 
     async login(request: LoginRequest): Promise<{ accessToken: string, refreshToken: string, user: User }> {
@@ -43,7 +46,19 @@ export default class UserService {
             display_name: twitchUser.displayName,
             avatar_url: twitchUser.profilePictureUrl
         }
+        console.log("cr", cr)
         const user = await this.userRepository.upsert(cr)
+        console.log("user", user)
+        try {
+            await this.authRepository.create(user.id)
+        } catch (error) {
+
+        }
+        console.log("update twitch token")
+        await this.authRepository.updateTwitchToken(user.id, {
+            twitch_refresh_token: token.refreshToken,
+            twitch_token_expires_at: token.expiresIn ? new Date(Date.now() + token.expiresIn * 1000) : null,
+        })
 
         const accessToken = jwt.sign(
             { id: user.id, username: user.username, displayName: user.display_name, avatarUrl: user.avatar_url, twitchId: user.twitch_id },
@@ -52,7 +67,8 @@ export default class UserService {
         );
         const refreshToken = crypto.randomBytes(40).toString("hex");
 
-        await redis.set(`refresh_token:${refreshToken}`, user.id, { EX: 60 * 60 * 24 * 7 });
+        redis.set(`refresh_token:${refreshToken}`, user.id, TTL.WEEK);
+        redis.set(`auth:twitch_access_token:twitch_id:${user.twitch_id}`, token.accessToken, TTL.WEEK)
 
         return { accessToken, refreshToken, user };
     }
@@ -80,5 +96,20 @@ export default class UserService {
         await redis.set(`refresh_token:${newRefreshToken}`, user.id, { EX: 60 * 60 * 24 * 7 });
 
         return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    }
+
+    createAccessToken(user: User): string {
+        const accessToken = jwt.sign(
+            {
+                id: user.id,
+                username: user.username,
+                displayName: user.display_name,
+                avatarUrl: user.avatar_url,
+                twitchId: user.twitch_id
+            },
+            this.cfg.jwtSecret,
+            { expiresIn: "15m" }
+        );
+        return accessToken;
     }
 }

@@ -25,8 +25,8 @@ export default class UserRepository {
         return prisma.user.findUnique({ where: { id } })
     }
 
-    async getByTwitchId(twitchId: string): Promise<User | null> {
-        return prisma.user.findUnique({ where: { twitch_id: twitchId } })
+    async getByTwitchId(twitchId: string) {
+        return prisma.user.findUnique({ where: { twitch_id: twitchId }, include: { auth: true } })
     }
 
 }
