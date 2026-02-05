@@ -11,17 +11,18 @@ datasource db {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  twitch_id    String     @unique
+  id           String        @id @default(cuid())
+  twitch_id    String        @unique
   username     String
   display_name String
   avatar_url   String?
-  created_at   DateTime   @default(now())
-  updated_at   DateTime   @updatedAt
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
   auth         Auth?
   workflows    Workflow[]
   triggers     Trigger[]
   firstWord    FirstWord?
+  clipShoutout ClipShoutout?
 }
 
 model Auth {
@@ -82,4 +83,19 @@ model FirstWordChatter {
   updated_at        DateTime  @updatedAt
 
   @@unique([twitch_chatter_id, first_word_id])
+}
+
+model ClipShoutout {
+  id                     String   @id @default(uuid())
+  twitch_id              String   @unique
+  enabled                Boolean  @default(true)
+  twitch_bot_id          String
+  reply_message          String?
+  enabled_clip           Boolean  @default(true)
+  enabled_highlight_only Boolean  @default(false)
+  overlay_key            String
+  owner_id               String   @unique
+  owner                  User     @relation(fields: [owner_id], references: [id])
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
 }

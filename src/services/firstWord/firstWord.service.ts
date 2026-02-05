@@ -12,6 +12,7 @@ import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
 import { CreateFirstWordRequest } from "./request";
 import AuthService from "../auth/auth.service";
 import { HelixSendChatMessageParams } from "@twurple/api";
+import { mapMessageVariables } from "@/utils/message";
 
 export default class FirstWordService {
     private readonly cfg: Configurations
@@ -216,16 +217,9 @@ export default class FirstWordService {
         // If replay message does not empty -> Send message to Twitch
         if (message) {
             const replaceMap = {
-                "{{user_login}}": e.chatter_user_login,
-                "{{user_name}}": e.chatter_user_name,
-                "{{broadcaster_user_login}}": e.broadcaster_user_login,
-                "{{broadcaster_user_name}}": e.broadcaster_user_name,
-                "{{message_text}}": e.message.text,
-                "{{color}}": e.color,
+                "{{user_name}}": e.chatter_user_name
             }
-            for (const [key, value] of Object.entries(replaceMap)) {
-                message = message.replace(new RegExp(key, "g"), value)
-            }
+            message = mapMessageVariables(message, replaceMap)
             console.log('send chat message', e.broadcaster_user_id, message)
             await twitchAppAPI.chat.sendChatMessageAsApp(senderId, e.broadcaster_user_id, message)
         }
