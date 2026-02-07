@@ -59,9 +59,9 @@ export default class FirstWordService {
         });
     }
 
-    async getByUserId(userId: string): Promise<FirstWord | null> {
-        return this.firstWordRepository.getByOwnerId(userId)
-    }
+    // async getByUserId(userId: string): Promise<FirstWord | null> {
+    //     return this.firstWordRepository.getByOwnerId(userId)
+    // }
 
     async update(userId: string, data: UpdateFirstWordRequest): Promise<FirstWord> {
         const existing = await this.firstWordRepository.getByOwnerId(userId)
@@ -74,40 +74,40 @@ export default class FirstWordService {
     }
 
     async uploadAudio(userId: string, file: { buffer: Buffer, filename: string, mimetype: string }): Promise<void> {
-        const firstWord = await this.firstWordRepository.getByOwnerId(userId)
-        console.log('firstWord', firstWord)
-        if (!firstWord) {
+        const widget = await this.firstWordRepository.getByOwnerId(userId)
+        console.log('firstWord', widget)
+        if (!widget || !widget.firstWord) {
             throw new Error("First word not found")
         }
-        if (firstWord.audio_key) {
-            await s3.deleteFile(firstWord.audio_key)
+        if (widget.firstWord?.audio_key) {
+            await s3.deleteFile(widget.firstWord.audio_key)
         }
         console.log('file', file)
-        const audioKey = `first-word/${firstWord.id}/audio/${file.filename}`
+        const audioKey = `first-word/${widget.firstWord?.id}/audio/${file.filename}`
         console.log('audioKey', audioKey)
         await s3.uploadFile(file.buffer, audioKey, file.mimetype)
-        await this.firstWordRepository.update(firstWord.id, { audio_key: audioKey })
+        await this.firstWordRepository.update(widget.firstWord?.id, { audio_key: audioKey })
         await redis.del(`first_word:owner_id:${userId}`)
     }
 
     async delete(userId: string): Promise<void> {
-        const firstWord = await this.firstWordRepository.getByOwnerId(userId);
-        if (!firstWord) {
+        const widget = await this.firstWordRepository.getByOwnerId(userId);
+        if (!widget || !widget.firstWord) {
             // If already deleted or not found, just return (idempotent) or throw error. 
             // Returning is safer for idempotency.
             return;
         }
 
-        if (firstWord.audio_key) {
+        if (widget.firstWord?.audio_key) {
             try {
-                await s3.deleteFile(firstWord.audio_key);
+                await s3.deleteFile(widget.firstWord.audio_key);
             } catch (error) {
                 console.error("Failed to delete audio file", error);
                 // Continue deletion even if S3 fails
             }
         }
 
-        await this.firstWordRepository.delete(firstWord.id);
+        await this.firstWordRepository.delete(widget.firstWord?.id);
 
         // Clear caches
         await redis.del(`first_word:owner_id:${userId}`);
