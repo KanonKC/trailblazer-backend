@@ -46,6 +46,7 @@ export default class ClipShoutoutController {
         }
 
         try {
+            console.log('cs req.body', req.body);
             const request = updateClipShoutoutSchema.parse(req.body);
             const updated = await this.clipShoutoutService.update(user.id, request);
             logger.info("controller.clipShoutout.update: Successfully updated clip shoutout", { userId: user.id });
