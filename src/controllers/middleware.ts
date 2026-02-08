@@ -25,7 +25,7 @@ export function verifyToken(token: string): string | jwt.JwtPayload {
     return jwt.verify(token, config.jwtSecret);
 }
 
-export function getUserFromRequest(req: FastifyRequest): { id: string } | null {
+export function getUserFromRequest(req: FastifyRequest) {
     const token = extractToken(req);
     // logger.debug('getUserFromRequest token found', { tokenString: !!token });
 

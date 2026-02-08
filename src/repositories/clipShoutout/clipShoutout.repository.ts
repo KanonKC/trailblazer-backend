@@ -25,21 +25,21 @@ export default class ClipShoutoutRepository {
         });
     }
 
-    async getByOwnerId(ownerId: string) {
-        return prisma.clipShoutout.findUnique({
-            where: { owner_id: ownerId },
-            include: {
-                owner: true,
-            }
-        });
-    }
+    // async getByOwnerId(ownerId: string) {
+    //     return prisma.clipShoutout.findUnique({
+    //         where: { owner_id: ownerId },
+    //         include: {
+    //             owner: true,
+    //         }
+    //     });
+    // }
 
-    async getByTwitchId(twitchId: string) {
-        return prisma.clipShoutout.findUnique({
-            where: { twitch_id: twitchId },
-            include: {
-                owner: true,
-            }
-        });
-    }
+    // async getByTwitchId(twitchId: string) {
+    //     return prisma.clipShoutout.findUnique({
+    //         where: { twitch_id: twitchId },
+    //         include: {
+    //             owner: true,
+    //         }
+    //     });
+    // }
 }

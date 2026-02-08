@@ -1,43 +1,52 @@
 import { prisma } from "@/libs/prisma";
-import { FirstWord, FirstWordChatter } from "generated/prisma/client";
-import { AddChatterRequest, CreateFirstWordRequest, UpdateFirstWordRequest } from "./request";
+import WidgetRepository, { WidgetTypeSlug } from "../widget/widget.repository";
+import { AddChatterRequest, FirstWordCreate, FirstWordUpdate } from "./request";
 
-export default class FirstWordRepository {
-    constructor() { }
+export default class FirstWordRepository extends WidgetRepository {
+    constructor() {
+        super(WidgetTypeSlug.FIRST_WORD);
+    }
 
-    async create(request: CreateFirstWordRequest): Promise<FirstWord> {
-        return prisma.firstWord.create({
-            data: request
+    async createWidget(request: FirstWordCreate) {
+        const type = await this.getWidgetType();
+        return prisma.widget.create({
+            data: {
+                twitch_id: request.twitch_id,
+                owner_id: request.owner_id,
+                overlay_key: request.overlay_key,
+                widget_type_id: type.id,
+                first_word: {
+                    create: {
+                        reply_message: request.reply_message,
+                        twitch_bot_id: request.twitch_bot_id
+                    }
+                }
+            },
+            include: {
+                first_word: true
+            }
         });
     }
 
-    async get(id: string): Promise<FirstWord | null> {
-        return prisma.firstWord.findUnique({ where: { id } });
-    }
-
-    async getByOwnerId(owner_id: string): Promise<FirstWord | null> {
-        return prisma.firstWord.findUnique({ where: { owner_id } });
-    }
-
-    async update(id: string, request: UpdateFirstWordRequest): Promise<FirstWord> {
+    async updateFirstWord(id: string, request: FirstWordUpdate) {
         console.log("Update request:", request);
-        return prisma.firstWord.update({
+        return prisma.widget.update({
             where: { id },
-            data: request
+            data: {
+                first_word: {
+                    update: request
+                }
+            }
         });
     }
 
-    async delete(id: string): Promise<FirstWord> {
-        return prisma.firstWord.delete({ where: { id } });
-    }
-
-    async addChatter(request: AddChatterRequest): Promise<void> {
+    async addChatter(request: AddChatterRequest) {
         await prisma.firstWordChatter.create({
             data: request
         });
     }
 
-    async getChatter(id: string, chatterId: string): Promise<FirstWordChatter | null> {
+    async getChatter(id: string, chatterId: string) {
         return prisma.firstWordChatter.findUnique({
             where: {
                 twitch_chatter_id_first_word_id: {
@@ -48,7 +57,7 @@ export default class FirstWordRepository {
         });
     }
 
-    async getChatters(id: string): Promise<FirstWordChatter[]> {
+    async getChatters(id: string) {
         return prisma.firstWordChatter.findMany({
             where: {
                 first_word_id: id
@@ -56,7 +65,7 @@ export default class FirstWordRepository {
         });
     }
 
-    async getChattersByChannelId(channelId: string): Promise<FirstWordChatter[]> {
+    async getChattersByChannelId(channelId: string) {
         return prisma.firstWordChatter.findMany({
             where: {
                 twitch_channel_id: channelId
@@ -64,7 +73,7 @@ export default class FirstWordRepository {
         });
     }
 
-    async clearChatters(id: string): Promise<void> {
+    async clearChatters(id: string) {
         await prisma.firstWordChatter.deleteMany({
             where: {
                 first_word_id: id
