@@ -10,6 +10,7 @@ import redis, { publisher, TTL } from "@/libs/redis";
 import { ClipShoutout } from "generated/prisma/client";
 import AuthService from "../auth/auth.service";
 import TwitchGql from "@/providers/twitchGql";
+import logger from "@/libs/winston";
 
 export default class ClipShoutoutService {
     private readonly clipShoutoutRepository: ClipShoutoutRepository;
@@ -63,7 +64,9 @@ export default class ClipShoutoutService {
             csConfig = await this.clipShoutoutRepository.getByTwitchId(event.broadcaster_user_id)
         }
         console.log('csConfig', csConfig)
+        logger.info("service.clipShoutout.shoutoutRaider: Get config", { data: csConfig })
         if (!csConfig || !csConfig.enabled) {
+            logger.info("service.clipShoutout.shoutoutRaider: Config not found or disabled")
             return
         }
 
@@ -72,9 +75,10 @@ export default class ClipShoutoutService {
         console.log('shouting out', csConfig.twitch_id, event.raid.user_id)
         const twitchUserAPI = await this.authService.createTwitchUserAPI(csConfig.twitch_bot_id)
         try {
+            logger.info("service.clipShoutout.shoutoutRaider: Shouting out", { data: { twitch_id: csConfig.twitch_id, raid_user_id: event.raid.user_id } })
             await twitchUserAPI.chat.shoutoutUser(csConfig.twitch_id, event.raid.user_id)
         } catch (err) {
-
+            logger.error("service.clipShoutout.shoutoutRaider: Shoutout failed", { error: err })
         }
 
         if (csConfig.reply_message) {
@@ -84,6 +88,7 @@ export default class ClipShoutoutService {
                 "{{channel_link}}": `https://twitch.tv/${event.raid.user_login}`,
             }
             const message = mapMessageVariables(csConfig.reply_message, replaceMap)
+            logger.info("service.clipShoutout.shoutoutRaider: Sending reply", { data: { twitch_bot_id: csConfig.twitch_bot_id, broadcaster_user_id: event.broadcaster_user_id, message } })
             await twitchAppAPI.chat.sendChatMessageAsApp(csConfig.twitch_bot_id, event.broadcaster_user_id, message)
         }
 
@@ -97,6 +102,7 @@ export default class ClipShoutoutService {
                 const selectedClip = clips.data[Math.floor(Math.random() * clips.data.length)]
                 const clipProductionUrl = await this.twitchGql.getClipProductionUrl(selectedClip.id)
                 console.log('clipProductionUrl', clipProductionUrl)
+                logger.info("service.clipShoutout.shoutoutRaider: Sending clip", { data: { clipProductionUrl, duration: selectedClip.duration, owner_id: csConfig.owner_id } })
                 await publisher.publish("clip-shoutout-clip", JSON.stringify({
                     url: clipProductionUrl,
                     duration: selectedClip.duration,

@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import ClipShoutoutService from "@/services/clipShoutout/clipShoutout.service";
 import { TwitchChannelChatNotificationEventRequest } from "./request";
+import logger from "@/libs/winston";
 
 export default class TwitchChannelChatNotificationEvent {
     private readonly clipShoutoutService: ClipShoutoutService;
@@ -20,6 +21,7 @@ export default class TwitchChannelChatNotificationEvent {
         const event = body.event as TwitchChannelChatNotificationEventRequest
 
         if (body.subscription.status === "enabled") {
+            logger.info("event.twitch.channelChatNotification: Handle event", { data: event })
             this.clipShoutoutService.shoutoutRaider(event)
             res.status(204).send()
             return
