@@ -64,7 +64,7 @@ export default class AuthService {
         try {
             await this.authRepository.updateTwitchToken(auth.id, {
                 twitch_refresh_token: newToken.refreshToken,
-                twitch_token_expires_at: newToken.expiresIn ? new Date(Date.now() + newToken.expiresIn * 1000) : null
+                twitch_token_expires_at: newToken.expiresIn ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null
             })
         } catch (error) {
             console.error("Error on updateTwitchToken", error)

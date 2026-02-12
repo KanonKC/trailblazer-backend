@@ -29,6 +29,8 @@ export default class UserService {
             this.cfg.twitch.redirectUrl
         )
 
+        console.log("token", token)
+
         const tokenInfo = await getTokenInfo(token.accessToken, this.cfg.twitch.clientId)
 
         if (!tokenInfo.userId) {
@@ -57,7 +59,7 @@ export default class UserService {
         console.log("update twitch token")
         await this.authRepository.updateTwitchToken(user.id, {
             twitch_refresh_token: token.refreshToken,
-            twitch_token_expires_at: token.expiresIn ? new Date(Date.now() + token.expiresIn * 1000) : null,
+            twitch_token_expires_at: token.expiresIn ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
         })
 
         const accessToken = jwt.sign(
