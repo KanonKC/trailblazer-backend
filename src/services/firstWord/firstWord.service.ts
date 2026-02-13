@@ -13,6 +13,7 @@ import { randomBytes } from "crypto";
 import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
 import AuthService from "../auth/auth.service";
 import { CreateFirstWordRequest } from "./request";
+import logger from "@/libs/winston";
 
 export default class FirstWordService {
     private readonly cfg: Configurations
@@ -155,7 +156,7 @@ export default class FirstWordService {
     }
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {
-
+        logger.info("First word greet new chatter", { layer: "service", context: "service.firstWord.greetNewChatter", data: { event: e } });
         let user: User | null = null
         const userCacheKey = `user:twitch_id:${e.broadcaster_user_id}`
         const userCache = await redis.get(userCacheKey)
@@ -168,8 +169,11 @@ export default class FirstWordService {
         }
 
         if (!user) {
+            logger.error("User not found", { layer: "service", context: "service.firstWord.greetNewChatter", data: { event: e } });
             throw new Error("User not found");
         }
+
+        logger.info("User found", { layer: "service", context: "service.firstWord.greetNewChatter", data: { user } });
 
         const firstWordCacheKey = `first_word:owner_id:${user.id}`
         const firstWordCache = await redis.get(firstWordCacheKey)
@@ -185,11 +189,15 @@ export default class FirstWordService {
         }
 
         if (!firstWord) {
+            logger.error("First word not found", { layer: "service", context: "service.firstWord.greetNewChatter", data: { user } });
             throw new Error("First word not found");
         }
 
+        logger.info("First word found", { layer: "service", context: "service.firstWord.greetNewChatter", data: { firstWord } });
+
         // Check if first word is enabled
         if (!firstWord.widget.enabled) {
+            logger.info("First word is not enabled", { layer: "service", context: "service.firstWord.greetNewChatter", data: { firstWord } });
             return
         }
 
@@ -198,6 +206,7 @@ export default class FirstWordService {
 
         // Check if user is bot itself
         if (e.chatter_user_id === senderId) {
+            logger.info("User is bot itself", { layer: "service", context: "service.firstWord.greetNewChatter", data: { firstWord } });
             return
         }
 
@@ -211,10 +220,13 @@ export default class FirstWordService {
             chatters = await this.firstWordRepository.getChattersByChannelId(e.broadcaster_user_id);
             redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
         }
+
+        logger.info("Chatters found", { layer: "service", context: "service.firstWord.greetNewChatter", data: { chatters } });
         const chatter = chatters.find(chatter => chatter.twitch_chatter_id === e.chatter_user_id)
 
         // Check if user is already greeted and not a test user
         if (chatter && e.chatter_user_id !== "0") {
+            logger.info("User is already greeted", { layer: "service", context: "service.firstWord.greetNewChatter", data: { chatter } });
             return
         }
 
@@ -227,6 +239,7 @@ export default class FirstWordService {
             }
             message = mapMessageVariables(message, replaceMap)
             console.log('send chat message', e.broadcaster_user_id, message)
+            logger.info("Sending chat message", { layer: "service", context: "service.firstWord.greetNewChatter", data: { message } });
             await twitchAppAPI.chat.sendChatMessageAsApp(senderId, e.broadcaster_user_id, message)
         }
 
@@ -235,6 +248,7 @@ export default class FirstWordService {
             console.log('audio_key', firstWord.audio_key)
             const url = await s3.getSignedURL(firstWord.audio_key, { expiresIn: 3600 });
             console.log('url', url)
+            logger.info("Sending audio to overlay", { layer: "service", context: "service.firstWord.greetNewChatter", data: { url } });
             await publisher.publish("first-word-audio", JSON.stringify({
                 userId: user.id,
                 audioUrl: url
@@ -244,6 +258,7 @@ export default class FirstWordService {
 
         // Add chatter to database if not test user to prevent duplicate greetings
         if (e.chatter_user_id !== "0") {
+            logger.info("Adding chatter to database", { layer: "service", context: "service.firstWord.greetNewChatter", data: { chatter: e.chatter_user_id } });
             try {
 
                 await this.firstWordRepository.addChatter({
@@ -261,6 +276,7 @@ export default class FirstWordService {
                 })
                 redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
             } catch (error) {
+                logger.error("Failed to add chatter to database", { layer: "service", context: "service.firstWord.greetNewChatter", data: { error } });
             }
         }
     }
