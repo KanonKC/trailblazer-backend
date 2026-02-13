@@ -73,10 +73,10 @@ export default class ClipShoutoutService {
         }
 
         await redis.set(cacheKey, JSON.stringify(csConfig), TTL.TWO_HOURS)
-
+        const senderId = csConfig.twitch_bot_id || this.cfg.twitch.defaultBotId
         console.log('shouting out', csConfig.widget.twitch_id, event.raid.user_id)
-        const twitchUserAPI = await this.authService.createTwitchUserAPI(csConfig.twitch_bot_id)
         try {
+            const twitchUserAPI = await this.authService.createTwitchUserAPI(senderId)
             await twitchUserAPI.chat.shoutoutUser(csConfig.widget.twitch_id, event.raid.user_id)
         } catch (err) {
             logger.error("Shoutout failed", { layer: "service", context: "service.clipShoutout.shoutoutRaider", error: err });
@@ -90,7 +90,7 @@ export default class ClipShoutoutService {
             }
             const message = mapMessageVariables(csConfig.reply_message, replaceMap)
             logger.info("Sending reply", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { twitch_bot_id: csConfig.twitch_bot_id, broadcaster_user_id: event.broadcaster_user_id, message } });
-            await twitchAppAPI.chat.sendChatMessageAsApp(csConfig.twitch_bot_id, event.broadcaster_user_id, message)
+            await twitchAppAPI.chat.sendChatMessageAsApp(senderId, event.broadcaster_user_id, message)
         }
 
         if (csConfig.enabled_clip) {
@@ -103,7 +103,7 @@ export default class ClipShoutoutService {
                 const selectedClip = clips.data[Math.floor(Math.random() * clips.data.length)]
                 const clipProductionUrl = await this.twitchGql.getClipProductionUrl(selectedClip.id)
                 logger.debug("Clip production URL generated", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { url: clipProductionUrl } });
-                logger.info("Sending clip", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { clipProductionUrl, duration: selectedClip.duration, owner_id: csConfig.owner_id } });
+                logger.info("Sending clip", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { clipProductionUrl, duration: selectedClip.duration, owner_id: csConfig.widget.owner_id } });
                 await publisher.publish("clip-shoutout-clip", JSON.stringify({
                     url: clipProductionUrl,
                     duration: selectedClip.duration,
