@@ -1,4 +1,4 @@
-export interface CreateClipShoutoutRequest {
+export interface CreateClipShoutout {
     twitch_id: string;
     enabled?: boolean;
     twitch_bot_id: string;
@@ -9,9 +9,9 @@ export interface CreateClipShoutoutRequest {
     owner_id: string;
 }
 
-export interface UpdateClipShoutoutRequest {
+export interface UpdateClipShoutout {
     enabled?: boolean;
-    twitch_bot_id?: string;
+    twitch_bot_id?: string | null;
     reply_message?: string | null;
     enabled_clip?: boolean;
     enabled_highlight_only?: boolean;

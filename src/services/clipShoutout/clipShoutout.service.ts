@@ -11,14 +11,18 @@ import { ClipShoutout } from "generated/prisma/client";
 import AuthService from "../auth/auth.service";
 import TwitchGql from "@/providers/twitchGql";
 import logger from "@/libs/winston";
+import { ClipShoutoutWidget } from "@/repositories/clipShoutout/response";
+import Configurations from "@/config/index";
 
 export default class ClipShoutoutService {
+    private readonly cfg: Configurations
     private readonly clipShoutoutRepository: ClipShoutoutRepository;
     private readonly userRepository: UserRepository;
     private readonly authService: AuthService;
     private readonly twitchGql: TwitchGql;
 
-    constructor(clipShoutoutRepository: ClipShoutoutRepository, userRepository: UserRepository, authService: AuthService, twitchGql: TwitchGql) {
+    constructor(cfg: Configurations, clipShoutoutRepository: ClipShoutoutRepository, userRepository: UserRepository, authService: AuthService, twitchGql: TwitchGql) {
+        this.cfg = cfg;
         this.clipShoutoutRepository = clipShoutoutRepository;
         this.userRepository = userRepository;
         this.authService = authService;
@@ -54,7 +58,7 @@ export default class ClipShoutoutService {
             return
         }
 
-        let csConfig: ClipShoutout | null = null
+        let csConfig: ClipShoutoutWidget | null = null
         const cacheKey = `clip_shoutout:twitch_id:${event.broadcaster_user_id}`
 
         const cachedCsConfig = await redis.get(cacheKey)
@@ -63,19 +67,17 @@ export default class ClipShoutoutService {
         } else {
             csConfig = await this.clipShoutoutRepository.getByTwitchId(event.broadcaster_user_id)
         }
-        logger.info("Get config", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: csConfig });
-        if (!csConfig || !csConfig.enabled) {
-            logger.info("Config not found or disabled", { layer: "service", context: "service.clipShoutout.shoutoutRaider" });
+        console.log('csConfig', csConfig)
+        if (!csConfig || !csConfig.widget.enabled) {
             return
         }
 
         await redis.set(cacheKey, JSON.stringify(csConfig), TTL.TWO_HOURS)
-
-        logger.debug("Shouting out raider", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { bot: csConfig.twitch_id, user: event.raid.user_id } });
+        const senderId = csConfig.twitch_bot_id || this.cfg.twitch.defaultBotId
+        console.log('shouting out', csConfig.widget.twitch_id, event.raid.user_id)
         try {
-            logger.info("Shouting out", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { twitch_id: csConfig.twitch_id, raid_user_id: event.raid.user_id } });
-            const twitchUserAPI = await this.authService.createTwitchUserAPI(csConfig.twitch_bot_id)
-            await twitchUserAPI.chat.shoutoutUser(csConfig.twitch_id, event.raid.user_id)
+            const twitchUserAPI = await this.authService.createTwitchUserAPI(senderId)
+            await twitchUserAPI.chat.shoutoutUser(csConfig.widget.twitch_id, event.raid.user_id)
         } catch (err) {
             logger.error("Shoutout failed", { layer: "service", context: "service.clipShoutout.shoutoutRaider", error: err });
         }
@@ -88,7 +90,7 @@ export default class ClipShoutoutService {
             }
             const message = mapMessageVariables(csConfig.reply_message, replaceMap)
             logger.info("Sending reply", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { twitch_bot_id: csConfig.twitch_bot_id, broadcaster_user_id: event.broadcaster_user_id, message } });
-            await twitchAppAPI.chat.sendChatMessageAsApp(csConfig.twitch_bot_id, event.broadcaster_user_id, message)
+            await twitchAppAPI.chat.sendChatMessageAsApp(senderId, event.broadcaster_user_id, message)
         }
 
         if (csConfig.enabled_clip) {
@@ -101,18 +103,18 @@ export default class ClipShoutoutService {
                 const selectedClip = clips.data[Math.floor(Math.random() * clips.data.length)]
                 const clipProductionUrl = await this.twitchGql.getClipProductionUrl(selectedClip.id)
                 logger.debug("Clip production URL generated", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { url: clipProductionUrl } });
-                logger.info("Sending clip", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { clipProductionUrl, duration: selectedClip.duration, owner_id: csConfig.owner_id } });
+                logger.info("Sending clip", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { clipProductionUrl, duration: selectedClip.duration, owner_id: csConfig.widget.owner_id } });
                 await publisher.publish("clip-shoutout-clip", JSON.stringify({
                     url: clipProductionUrl,
                     duration: selectedClip.duration,
-                    userId: csConfig.owner_id
+                    userId: csConfig.widget.owner_id
                 }))
             }
         }
 
     }
 
-    async getByUserId(userId: string): Promise<ClipShoutout | null> {
+    async getByUserId(userId: string): Promise<ClipShoutoutWidget | null> {
         return this.clipShoutoutRepository.getByOwnerId(userId)
     }
 
@@ -121,8 +123,11 @@ export default class ClipShoutoutService {
         if (!existing) {
             throw new Error("Clip shoutout config not found")
         }
-        const res = await this.clipShoutoutRepository.update(existing.id, data)
-        await redis.del(`clip_shoutout:twitch_id:${existing.twitch_id}`)
+        const res = await this.clipShoutoutRepository.update(existing.id, {
+            ...data,
+            twitch_bot_id: data.twitch_bot_id || this.cfg.twitch.defaultBotId
+        })
+        await redis.del(`clip_shoutout:twitch_id:${existing.widget.twitch_id}`)
         await redis.del(`clip_shoutout:owner_id:${userId}`)
         return res
     }
@@ -135,7 +140,7 @@ export default class ClipShoutoutService {
 
         await this.clipShoutoutRepository.delete(existing.id);
 
-        await redis.del(`clip_shoutout:twitch_id:${existing.twitch_id}`);
+        await redis.del(`clip_shoutout:twitch_id:${existing.widget.twitch_id}`);
         await redis.del(`clip_shoutout:owner_id:${userId}`);
     }
 
@@ -148,14 +153,14 @@ export default class ClipShoutoutService {
         const newKey = randomBytes(16).toString("hex");
         const updated = await this.clipShoutoutRepository.update(existing.id, { overlay_key: newKey });
 
-        await redis.del(`clip_shoutout:twitch_id:${existing.twitch_id}`);
+        await redis.del(`clip_shoutout:twitch_id:${existing.widget.twitch_id}`);
         await redis.del(`clip_shoutout:owner_id:${userId}`);
         return updated;
     }
 
     async validateOverlayAccess(userId: string, key: string): Promise<boolean> {
         const cacheKey = `clip_shoutout:owner_id:${userId}`
-        let config: ClipShoutout | null = null
+        let config: ClipShoutoutWidget | null = null
 
         const cached = await redis.get(cacheKey)
         if (cached) {
@@ -170,6 +175,6 @@ export default class ClipShoutoutService {
         logger.debug("Validating overlay access", { layer: "service", context: "service.clipShoutout.validateOverlayAccess", data: { configFound: !!config } });
 
         if (!config) return false;
-        return config.overlay_key === key;
+        return config.widget.overlay_key === key;
     }
 }

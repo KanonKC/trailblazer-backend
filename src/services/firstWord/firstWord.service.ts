@@ -1,18 +1,18 @@
 import Configurations from "@/config/index";
 import { TwitchChannelChatMessageEventRequest } from "@/events/twitch/channelChatMessage/request";
-import { randomBytes } from "crypto";
 import { TwitchStreamOnlineEventRequest } from "@/events/twitch/streamOnline/request";
 import s3 from "@/libs/awsS3";
 import redis, { TTL, publisher } from "@/libs/redis";
 import { createESTransport, twitchAppAPI } from "@/libs/twurple";
 import FirstWordRepository from "@/repositories/firstWord/firstWord.repository";
-import { UpdateFirstWordRequest } from "@/repositories/firstWord/request";
+import { UpdateFirstWord } from "@/repositories/firstWord/request";
+import { FirstWordWidget } from "@/repositories/firstWord/response";
 import UserRepository from "@/repositories/user/user.repository";
-import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
-import { CreateFirstWordRequest } from "./request";
-import AuthService from "../auth/auth.service";
-import { HelixSendChatMessageParams } from "@twurple/api";
 import { mapMessageVariables } from "@/utils/message";
+import { randomBytes } from "crypto";
+import { FirstWord, FirstWordChatter, User } from "generated/prisma/client";
+import AuthService from "../auth/auth.service";
+import { CreateFirstWordRequest } from "./request";
 
 export default class FirstWordService {
     private readonly cfg: Configurations
@@ -27,7 +27,7 @@ export default class FirstWordService {
         this.authService = authService;
     }
 
-    async create(request: CreateFirstWordRequest): Promise<FirstWord> {
+    async create(request: CreateFirstWordRequest): Promise<FirstWordWidget> {
         const user = await this.userRepository.get(request.owner_id);
         if (!user) {
             throw new Error("User not found");
@@ -55,15 +55,16 @@ export default class FirstWordService {
         return this.firstWordRepository.create({
             ...request,
             reply_message: "สวัสดี {{user_name}} ยินดีต้อนรับเข้าสู่สตรีม!",
-            overlay_key: randomBytes(16).toString("hex")
+            twitch_bot_id: user.twitch_id,
+            overlay_key: randomBytes(16).toString("hex"),
         });
     }
 
-    async getByUserId(userId: string): Promise<FirstWord | null> {
+    async getByUserId(userId: string): Promise<FirstWordWidget | null> {
         return this.firstWordRepository.getByOwnerId(userId)
     }
 
-    async update(userId: string, data: UpdateFirstWordRequest): Promise<FirstWord> {
+    async update(userId: string, data: UpdateFirstWord): Promise<FirstWordWidget> {
         const existing = await this.firstWordRepository.getByOwnerId(userId)
         if (!existing) {
             throw new Error("First word config not found")
@@ -121,6 +122,7 @@ export default class FirstWordService {
         }
 
         const newKey = randomBytes(16).toString("hex");
+        // TODO: Use widget repository
         const updated = await this.firstWordRepository.update(firstWord.id, { overlay_key: newKey });
 
         await redis.del(`first_word:owner_id:${userId}`);
@@ -130,7 +132,7 @@ export default class FirstWordService {
     async validateOverlayAccess(userId: string, key: string): Promise<boolean> {
         // We can use cache here for performance since this hits frequently on connection
         const firstWordCacheKey = `first_word:owner_id:${userId}`
-        let firstWord: FirstWord | null = null
+        let firstWord: FirstWordWidget | null = null
 
         const firstWordCache = await redis.get(firstWordCacheKey)
         if (firstWordCache) {
@@ -142,11 +144,14 @@ export default class FirstWordService {
             }
         }
 
+        console.log('firstWord', firstWord)
+
         if (!firstWord) return false;
 
+        console.log('firstWord validate', firstWord.widget.overlay_key, key)
         // Use constant time comparison if possible, but for UUIDs/strings here standard checks are okay 
         // as long as we handle missing keys.
-        return firstWord.overlay_key === key;
+        return firstWord.widget.overlay_key === key;
     }
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {
@@ -168,7 +173,7 @@ export default class FirstWordService {
 
         const firstWordCacheKey = `first_word:owner_id:${user.id}`
         const firstWordCache = await redis.get(firstWordCacheKey)
-        let firstWord: FirstWord | null = null
+        let firstWord: FirstWordWidget | null = null
 
         if (firstWordCache) {
             firstWord = JSON.parse(firstWordCache)
@@ -184,9 +189,10 @@ export default class FirstWordService {
         }
 
         // Check if first word is enabled
-        if (!firstWord.enabled) {
+        if (!firstWord.widget.enabled) {
             return
         }
+
 
         const senderId = firstWord.twitch_bot_id || this.cfg.twitch.defaultBotId
 
@@ -238,20 +244,24 @@ export default class FirstWordService {
 
         // Add chatter to database if not test user to prevent duplicate greetings
         if (e.chatter_user_id !== "0") {
-            await this.firstWordRepository.addChatter({
-                first_word_id: firstWord.id,
-                twitch_chatter_id: e.chatter_user_id,
-                twitch_channel_id: e.broadcaster_user_id,
-            })
-            chatters.push({
-                id: 0,
-                first_word_id: firstWord.id,
-                twitch_chatter_id: e.chatter_user_id,
-                twitch_channel_id: e.broadcaster_user_id,
-                created_at: new Date(),
-                updated_at: new Date()
-            })
-            redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
+            try {
+
+                await this.firstWordRepository.addChatter({
+                    first_word_id: firstWord.id,
+                    twitch_chatter_id: e.chatter_user_id,
+                    twitch_channel_id: e.broadcaster_user_id,
+                })
+                chatters.push({
+                    id: 0,
+                    first_word_id: firstWord.id,
+                    twitch_chatter_id: e.chatter_user_id,
+                    twitch_channel_id: e.broadcaster_user_id,
+                    created_at: new Date(),
+                    updated_at: new Date()
+                })
+                redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
+            } catch (error) {
+            }
         }
     }
 
@@ -270,7 +280,7 @@ export default class FirstWordService {
         redis.del(`first_word:chatters:channel_id:${e.broadcaster_user_id}`)
     }
 
-    async clearCaches() {
+    async clearCaches(): Promise<void> {
         const keys = await redis.keys("first_word:*")
         for (const key of keys) {
             await redis.del(key)
