@@ -63,22 +63,21 @@ export default class ClipShoutoutService {
         } else {
             csConfig = await this.clipShoutoutRepository.getByTwitchId(event.broadcaster_user_id)
         }
-        console.log('csConfig', csConfig)
-        logger.info("service.clipShoutout.shoutoutRaider: Get config", { data: csConfig })
+        logger.info("Get config", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: csConfig });
         if (!csConfig || !csConfig.enabled) {
-            logger.info("service.clipShoutout.shoutoutRaider: Config not found or disabled")
+            logger.info("Config not found or disabled", { layer: "service", context: "service.clipShoutout.shoutoutRaider" });
             return
         }
 
         await redis.set(cacheKey, JSON.stringify(csConfig), TTL.TWO_HOURS)
 
-        console.log('shouting out', csConfig.twitch_id, event.raid.user_id)
+        logger.debug("Shouting out raider", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { bot: csConfig.twitch_id, user: event.raid.user_id } });
         try {
-            logger.info("service.clipShoutout.shoutoutRaider: Shouting out", { data: { twitch_id: csConfig.twitch_id, raid_user_id: event.raid.user_id } })
+            logger.info("Shouting out", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { twitch_id: csConfig.twitch_id, raid_user_id: event.raid.user_id } });
             const twitchUserAPI = await this.authService.createTwitchUserAPI(csConfig.twitch_bot_id)
             await twitchUserAPI.chat.shoutoutUser(csConfig.twitch_id, event.raid.user_id)
         } catch (err) {
-            logger.error("service.clipShoutout.shoutoutRaider: Shoutout failed", { error: err })
+            logger.error("Shoutout failed", { layer: "service", context: "service.clipShoutout.shoutoutRaider", error: err });
         }
 
         if (csConfig.reply_message) {
@@ -88,7 +87,7 @@ export default class ClipShoutoutService {
                 "{{channel_link}}": `https://twitch.tv/${event.raid.user_login}`,
             }
             const message = mapMessageVariables(csConfig.reply_message, replaceMap)
-            logger.info("service.clipShoutout.shoutoutRaider: Sending reply", { data: { twitch_bot_id: csConfig.twitch_bot_id, broadcaster_user_id: event.broadcaster_user_id, message } })
+            logger.info("Sending reply", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { twitch_bot_id: csConfig.twitch_bot_id, broadcaster_user_id: event.broadcaster_user_id, message } });
             await twitchAppAPI.chat.sendChatMessageAsApp(csConfig.twitch_bot_id, event.broadcaster_user_id, message)
         }
 
@@ -101,8 +100,8 @@ export default class ClipShoutoutService {
             if (clips.data.length > 0) {
                 const selectedClip = clips.data[Math.floor(Math.random() * clips.data.length)]
                 const clipProductionUrl = await this.twitchGql.getClipProductionUrl(selectedClip.id)
-                console.log('clipProductionUrl', clipProductionUrl)
-                logger.info("service.clipShoutout.shoutoutRaider: Sending clip", { data: { clipProductionUrl, duration: selectedClip.duration, owner_id: csConfig.owner_id } })
+                logger.debug("Clip production URL generated", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { url: clipProductionUrl } });
+                logger.info("Sending clip", { layer: "service", context: "service.clipShoutout.shoutoutRaider", data: { clipProductionUrl, duration: selectedClip.duration, owner_id: csConfig.owner_id } });
                 await publisher.publish("clip-shoutout-clip", JSON.stringify({
                     url: clipProductionUrl,
                     duration: selectedClip.duration,
@@ -168,7 +167,7 @@ export default class ClipShoutoutService {
             }
         }
 
-        console.log("Config", config);
+        logger.debug("Validating overlay access", { layer: "service", context: "service.clipShoutout.validateOverlayAccess", data: { configFound: !!config } });
 
         if (!config) return false;
         return config.overlay_key === key;

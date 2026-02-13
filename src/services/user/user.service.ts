@@ -8,6 +8,7 @@ import { exchangeCode, getTokenInfo } from "@twurple/auth";
 import crypto from "crypto";
 import { User } from "generated/prisma/client";
 import jwt from "jsonwebtoken";
+import logger from "@/libs/winston";
 import { LoginRequest } from "./request";
 
 export default class UserService {
@@ -29,7 +30,7 @@ export default class UserService {
             this.cfg.twitch.redirectUrl
         )
 
-        console.log("token", token)
+        logger.debug("Received twitch token", { layer: "service", context: "service.user.login" });
 
         const tokenInfo = await getTokenInfo(token.accessToken, this.cfg.twitch.clientId)
 
@@ -48,15 +49,15 @@ export default class UserService {
             display_name: twitchUser.displayName,
             avatar_url: twitchUser.profilePictureUrl
         }
-        console.log("cr", cr)
+        logger.debug("Creating user request", { layer: "service", context: "service.user.login", data: cr });
         const user = await this.userRepository.upsert(cr)
-        console.log("user", user)
+        logger.info("User logged in/created", { layer: "service", context: "service.user.login", data: { userId: user.id, username: user.username } });
         try {
             await this.authRepository.create(user.id)
         } catch (error) {
 
         }
-        console.log("update twitch token")
+        logger.debug("Updating twitch token", { layer: "service", context: "service.user.login", data: { userId: user.id } });
         await this.authRepository.updateTwitchToken(user.id, {
             twitch_refresh_token: token.refreshToken,
             twitch_token_expires_at: token.expiresIn ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
@@ -98,6 +99,19 @@ export default class UserService {
         await redis.set(`refresh_token:${newRefreshToken}`, user.id, { EX: 60 * 60 * 24 * 7 });
 
         return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    }
+
+    async logout(userId: string): Promise<void> {
+        const user = await this.userRepository.get(userId);
+        if (!user) {
+            throw new Error("User not found");
+        }
+        await this.authRepository.updateTwitchToken(user.id, {
+            twitch_refresh_token: null,
+            twitch_token_expires_at: null,
+        })
+        const cacheKey = `auth:twitch_access_token:twitch_id:${user.twitch_id}`;
+        await redis.del(cacheKey);
     }
 
     createAccessToken(user: User): string {
