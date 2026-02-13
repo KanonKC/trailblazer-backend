@@ -17,13 +17,13 @@ export default class ClipShoutoutEventController {
         const { userId } = req.params;
         const { key } = req.query;
 
-        logger.info("controller.clipShoutoutEvent.sse: SSE connection attempt", { userId });
+        logger.info("SSE connection attempt", { layer: "event-controller", context: "controller.clipShoutoutEvent.sse", data: { userId } });
 
         console.log("Validate overlay access", userId, key);
         const isValid = await this.clipShoutoutService.validateOverlayAccess(userId, key);
         console.log("Validate overlay access result", isValid);
         if (!isValid) {
-            logger.warn("controller.clipShoutoutEvent.sse: Invalid key for SSE connection", { userId });
+            logger.warn("Invalid key for SSE connection", { layer: "event-controller", context: "controller.clipShoutoutEvent.sse", data: { userId } });
             return res.status(401).send({ message: "Invalid overlay key" });
         }
 
@@ -66,7 +66,7 @@ export default class ClipShoutoutEventController {
     public disconnectUser(userId: string) {
         const userConns = this.connections.get(userId);
         if (userConns) {
-            logger.info("controller.clipShoutoutEvent.disconnectUser: Disconnecting clients", { userId, clientCount: userConns.size });
+            logger.info("Disconnecting clients", { layer: "event-controller", context: "controller.clipShoutoutEvent.disconnectUser", data: { userId, clientCount: userConns.size } });
             for (const res of userConns) {
                 res.raw.end();
             }

@@ -17,11 +17,11 @@ export default class FirstWordEventController {
         const { userId } = req.params;
         const { key } = req.query;
 
-        logger.info("controller.firstWordEvent.sse: SSE connection attempt", { userId });
+        logger.info("SSE connection attempt", { layer: "event-controller", context: "controller.firstWordEvent.sse", data: { userId } });
 
         const isValid = await this.firstWordService.validateOverlayAccess(userId, key);
         if (!isValid) {
-            logger.warn("controller.firstWordEvent.sse: Invalid key for SSE connection", { userId });
+            logger.warn("Invalid key for SSE connection", { layer: "event-controller", context: "controller.firstWordEvent.sse", data: { userId } });
             return res.status(401).send({ message: "Invalid overlay key" });
         }
 
@@ -64,7 +64,7 @@ export default class FirstWordEventController {
     public disconnectUser(userId: string) {
         const userConns = this.connections.get(userId);
         if (userConns) {
-            logger.info("controller.firstWordEvent.disconnectUser: Disconnecting clients", { userId, clientCount: userConns.size });
+            logger.info("Disconnecting clients", { layer: "event-controller", context: "controller.firstWordEvent.disconnectUser", data: { userId, clientCount: userConns.size } });
             for (const res of userConns) {
                 res.raw.end();
             }

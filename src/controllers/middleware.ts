@@ -34,7 +34,7 @@ export function getUserFromRequest(req: FastifyRequest): { id: string } | null {
     try {
         const decoded = verifyToken(token);
         if (typeof decoded === 'string') {
-            logger.warn('getUserFromRequest: decoded token is string', { decoded });
+            logger.warn("decoded token is string", { layer: "middleware", context: "middleware.auth.getUserFromRequest", data: { decoded } });
             return null;
         }
         return decoded as { id: string, twitchId: string };
@@ -73,7 +73,7 @@ async function refresh(refreshToken: string) {
 
         return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (err) {
-        logger.error("Token refresh failed", { error: err });
+        logger.error("Token refresh failed", { layer: "middleware", context: "middleware.auth.refresh", error: err });
         throw new Error("Invalid refresh token");
     }
 }
@@ -84,7 +84,7 @@ export async function authenticationRequired(req: FastifyRequest, res: FastifyRe
     if (!token) {
         const refreshToken = req.cookies.refreshToken;
         if (!refreshToken) {
-            logger.debug('authenticationRequired: No access or refresh token');
+            logger.debug("No access or refresh token", { layer: "middleware", context: "middleware.auth.authenticationRequired" });
             res.status(401).send({ error: "Unauthorized" });
             return;
         }
@@ -110,7 +110,7 @@ export async function authenticationRequired(req: FastifyRequest, res: FastifyRe
 
             token = newTokens.accessToken;
         } catch (e) {
-            logger.error('authenticationRequired: Refresh failed', { error: e });
+            logger.error("Refresh failed", { layer: "middleware", context: "middleware.auth.authenticationRequired", error: e });
             console.log('1', e);
             res.status(401).send({ error: "Unauthorized" });
             return;
@@ -120,7 +120,7 @@ export async function authenticationRequired(req: FastifyRequest, res: FastifyRe
     try {
         const decoded = verifyToken(token!); // Token is guaranteed to be string here because of logic above
         if (typeof decoded === 'string') {
-            logger.warn('authenticationRequired: decoded token is string', { decoded });
+            logger.warn("decoded token is string", { layer: "middleware", context: "middleware.auth.authenticationRequired", data: { decoded } });
             console.log('2');
             res.status(401).send({ error: "Unauthorized" });
             return;
@@ -128,7 +128,7 @@ export async function authenticationRequired(req: FastifyRequest, res: FastifyRe
         console.log('4');
         return decoded as { id: string, twitchId: string };
     } catch (e) {
-        logger.error('authenticationRequired: Token verification failed', { error: e });
+        logger.error("Token verification failed", { layer: "middleware", context: "middleware.auth.authenticationRequired", error: e });
         console.log('3', e);
         res.status(401).send({ error: "Unauthorized" });
         return;
