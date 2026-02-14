@@ -3,7 +3,9 @@ import redis from "@/libs/redis";
 import { FastifyReply, FastifyRequest } from "fastify";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import logger from "@/libs/winston";
+import TLogger, { Layer } from "@/logging/logger";
+
+const logger = new TLogger(Layer.MIDDLEWARE);
 import config from "@/config";
 
 const ACCESS_TOKEN_EXPIRY = "15m";
@@ -26,25 +28,25 @@ export function verifyToken(token: string): string | jwt.JwtPayload {
 }
 
 export function getUserFromRequest(req: FastifyRequest): { id: string } | null {
+    logger.setContext("middleware.auth.getUserFromRequest");
     const token = extractToken(req);
-    // logger.debug('getUserFromRequest token found', { tokenString: !!token });
 
     if (!token) return null;
 
     try {
         const decoded = verifyToken(token);
         if (typeof decoded === 'string') {
-            logger.warn("decoded token is string", { layer: "middleware", context: "middleware.auth.getUserFromRequest", data: { decoded } });
+            logger.warn({ message: "decoded token is string", data: { decoded } });
             return null;
         }
         return decoded as { id: string, twitchId: string };
     } catch (e) {
-        // logger.error('getUserFromRequest error', { error: e });
         return null;
     }
 }
 
 async function refresh(refreshToken: string) {
+    logger.setContext("middleware.auth.refresh");
     if (!refreshToken) {
         throw new Error("No refresh token");
     }
@@ -73,18 +75,19 @@ async function refresh(refreshToken: string) {
 
         return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (err) {
-        logger.error("Token refresh failed", { layer: "middleware", context: "middleware.auth.refresh", error: err });
+        logger.error({ message: "Token refresh failed", error: err as string | Error });
         throw new Error("Invalid refresh token");
     }
 }
 
 export async function authenticationRequired(req: FastifyRequest, res: FastifyReply) {
+    logger.setContext("middleware.auth.authenticationRequired");
     let token = extractToken(req);
 
     if (!token) {
         const refreshToken = req.cookies.refreshToken;
         if (!refreshToken) {
-            logger.debug("No access or refresh token", { layer: "middleware", context: "middleware.auth.authenticationRequired" });
+            logger.warn({ message: "No access or refresh token" });
             res.status(401).send({ error: "Unauthorized" });
             return;
         }
@@ -110,8 +113,7 @@ export async function authenticationRequired(req: FastifyRequest, res: FastifyRe
 
             token = newTokens.accessToken;
         } catch (e) {
-            logger.error("Refresh failed", { layer: "middleware", context: "middleware.auth.authenticationRequired", error: e });
-            console.log('1', e);
+            logger.error({ message: "Refresh failed", error: e as string | Error });
             res.status(401).send({ error: "Unauthorized" });
             return;
         }
@@ -120,16 +122,13 @@ export async function authenticationRequired(req: FastifyRequest, res: FastifyRe
     try {
         const decoded = verifyToken(token!); // Token is guaranteed to be string here because of logic above
         if (typeof decoded === 'string') {
-            logger.warn("decoded token is string", { layer: "middleware", context: "middleware.auth.authenticationRequired", data: { decoded } });
-            console.log('2');
+            logger.warn({ message: "decoded token is string", data: { decoded } });
             res.status(401).send({ error: "Unauthorized" });
             return;
         }
-        console.log('4');
         return decoded as { id: string, twitchId: string };
     } catch (e) {
-        logger.error("Token verification failed", { layer: "middleware", context: "middleware.auth.authenticationRequired", error: e });
-        console.log('3', e);
+        logger.error({ message: "Token verification failed", error: e as string | Error });
         res.status(401).send({ error: "Unauthorized" });
         return;
     }
