@@ -33,6 +33,8 @@ import AuthService from "./services/auth/auth.service";
 import AuthRepository from "./repositories/auth/auth.repository";
 import ClipShoutoutRepository from "./repositories/clipShoutout/clipShoutout.repository";
 import TwitchGql from "./providers/twitchGql";
+import TwitchService from "./services/twitch/twitch";
+import TwitchController from "./controllers/twitch/twitch.controller";
 
 // Providers
 const twitchGql = new TwitchGql(config);
@@ -57,6 +59,7 @@ const clipShoutoutService = new ClipShoutoutService(config, clipShoutoutReposito
 
 const randomDbdPerkService = new RandomDbdPerkService(randomDbdPerkRepository, userRepository);
 const widgetService = new WidgetService(widgetRepository);
+const twitchService = new TwitchService(authService);
 
 // Controller Layer
 const systemController = new SystemController(systemService);
@@ -69,6 +72,7 @@ const clipShoutoutController = new ClipShoutoutController(clipShoutoutService, c
 const randomDbdPerkController = new RandomDbdPerkController(randomDbdPerkService);
 const randomDbdPerkEventController = new RandomDbdPerkEventController(randomDbdPerkService);
 const widgetController = new WidgetController(widgetService);
+const twitchController = new TwitchController(twitchService);
 
 // Event Layer
 const twitchChannelChatMessageEvent = new TwitchChannelChatMessageEvent(firstWordService)
@@ -123,6 +127,8 @@ server.delete("/api/v1/random-dbd-perk", randomDbdPerkController.delete.bind(ran
 server.patch("/api/v1/widgets/:id/enabled", widgetController.updateEnabled.bind(widgetController));
 server.patch("/api/v1/widgets/:id/overlay", widgetController.updateOverlay.bind(widgetController));
 server.delete("/api/v1/widgets/:id", widgetController.delete.bind(widgetController));
+
+server.get("/api/v1/twitch/channel-rewards", twitchController.getChannelRewards.bind(twitchController));
 
 server.register(FastifySSEPlugin);
 server.get("/api/v1/events/first-word/:userId", firstWordEventController.sse.bind(firstWordEventController));
