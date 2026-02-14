@@ -8,26 +8,33 @@ import Configurations from "@/config/index";
 import { ApiClient } from "@twurple/api";
 import UserRepository from "@/repositories/user/user.repository";
 import { rawDataSymbol } from "@twurple/common";
+import UserService from "../user/user.service";
+import TLogger, { Layer } from "@/logging/logger";
+
+const logger = new TLogger(Layer.SERVICE);
 
 export default class AuthService {
     private cfg: Configurations
     private authRepository: AuthRepository;
     private userRepository: UserRepository;
-    constructor(cfg: Configurations, authRepository: AuthRepository, userRepository: UserRepository) {
+    private userService: UserService;
+    constructor(cfg: Configurations, authRepository: AuthRepository, userRepository: UserRepository, userService: UserService) {
         this.cfg = cfg
         this.authRepository = authRepository;
         this.userRepository = userRepository;
+        this.userService = userService;
     }
 
-    async getTwitchAccessToken(twitchId: string): Promise<string> {
-        console.log("getTwitchAccessToken", twitchId)
+    private async getTwitchAccessToken(twitchId: string): Promise<string> {
+        logger.setContext("service.auth.getTwitchAccessToken");
+        logger.info({ message: "getTwitchAccessToken", data: { twitchId } });
         const cacheKey = `auth:twitch_access_token:twitch_id:${twitchId}`;
         let token = await redis.get(cacheKey);
         if (token) {
             // Validate token
             const twitchUserAPI = createTwitchUserAPI(token)
             const tokenInfo = await twitchUserAPI.getTokenInfo()
-            console.log("tokenInfo", tokenInfo[rawDataSymbol])
+            logger.info({ message: "tokenInfo", data: tokenInfo[rawDataSymbol] });
             // If valid return token
             if (!tokenInfo.expiryDate || tokenInfo.expiryDate > new Date()) {
                 return token
@@ -40,34 +47,32 @@ export default class AuthService {
         const now = new Date()
         let auth: Auth | null = null
         const user = await this.userRepository.getByTwitchId(twitchId)
-        console.log("user", user)
+        logger.info({ message: "user", data: user });
         if (!user) {
             throw new Error("User not found");
         }
         auth = user.auth;
-        console.log("auth", auth)
+        logger.info({ message: "auth", data: auth });
         if (!auth) {
             auth = await this.authRepository.create(user.id)
         }
-        if (!auth.twitch_refresh_token) {
-            throw new Error("Refresh token not found");
-        }
-        if (auth.twitch_token_expires_at && now > auth.twitch_token_expires_at) {
-            throw new Error("Token expired");
+        if (!auth.twitch_refresh_token || (auth.twitch_token_expires_at && now > auth.twitch_token_expires_at)) {
+            await this.userService.logout(user.id)
+            throw new Error("Refresh token not found or expired");
         }
         const newToken = await refreshUserToken(
             this.cfg.twitch.clientId,
             this.cfg.twitch.clientSecret,
             auth.twitch_refresh_token
         )
-        console.log("newToken", newToken)
+        logger.info({ message: "newToken", data: newToken });
         try {
             await this.authRepository.updateTwitchToken(auth.id, {
                 twitch_refresh_token: newToken.refreshToken,
                 twitch_token_expires_at: newToken.expiresIn ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null
             })
         } catch (error) {
-            console.error("Error on updateTwitchToken", error)
+            logger.error({ message: "Error on updateTwitchToken", error: error as Error });
         }
         await redis.set(cacheKey, newToken.accessToken, TTL.QUARTER_HOUR)
         return newToken.accessToken

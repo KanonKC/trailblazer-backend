@@ -4,30 +4,41 @@ trigger: always_on
 
 # Logging Rules
 
-When implementing logging in the `trailblazer-backend` project, you must follow the structured logging format using the `winston` logger. This ensures consistency and makes logs easier to search and filter in monitoring tools like New Relic.
+When implementing logging in the `trailblazer-backend` project, you must follow the structured logging format using the `TLogger` wrapper. This ensures consistency and makes logs easier to search and filter in monitoring tools like New Relic.
 
 ## Import
-Always import the logger from the project's winston library:
+Always import the logger wrapper and Layer enum from the project's logging module:
 ```typescript
-import logger from "@/libs/winston";
+import TLogger, { Layer } from "@/logging/logger";
+```
+
+## Instantiation
+Instantiate the logger once per file (typically a class or module), specifying the architectural layer:
+```typescript
+const logger = new TLogger(Layer.CONTROLLER); // or SERVICE, REPOSITORY, etc.
 ```
 
 ## Structure
-All log calls must include a message string as the first argument and a metadata object as the second argument. The metadata object must include `layer` and `context`.
+All log calls use a single object argument implementing the `LogMeta` interface. You must always use `setContext` at the first line of every function to set the context for subsequent log calls in that scope.
 
 ```typescript
-logger.<level>(message: string, meta: {
-    layer: string;
-    context: string;
-    data?: any;
-    error?: any;
+interface LogMeta {
+    message: string;
+    context?: string; // e.g., "domain.feature.action"
+    data?: any;       // Relevant data context
+    error?: Error | string; // Error object or message
+    user?: User;      // Optional user object
+}
+
+// Usage
+logger.setContext("domain.feature.action");
+logger.<level>({ 
+    message: "Log message", 
+    ... 
 });
 ```
 
-- **layer**: The architectural layer (e.g., "controller", "service", "repository", "middleware", "event").
-- **context**: A dot-separated string indicating the specific location (e.g., "controller.user.login").
-- **data**: (Optional) Relevant data context, such as request query parameters or user object.
-- **error**: (Optional) Error object or message, primarily for `warn` and `error` levels.
+- **layer**: Automatically handled by the `TLogger` instance.
 
 ## Usage Examples
 
@@ -36,18 +47,18 @@ Use `logger.info` for successful operations, key events, and general information
 
 **Format:**
 ```typescript
-logger.info("Message describing the event", { 
-    layer: "layer_name", 
-    context: "domain.feature.action", 
+logger.setContext("domain.feature.action");
+logger.info({ 
+    message: "Message describing the event", 
     data: variableOkToLog 
 });
 ```
 
 **Example:**
 ```typescript
-logger.info("Login successful", { 
-    layer: "controller", 
-    context: "controller.user.login", 
+logger.setContext("controller.user.login");
+logger.info({ 
+    message: "Login successful", 
     data: user 
 });
 ```
@@ -57,19 +68,19 @@ Use `logger.warn` for expected implementation issues, validation errors, or miss
 
 **Format:**
 ```typescript
-logger.warn("Warning message", { 
-    layer: "layer_name", 
-    context: "domain.feature.action", 
-    data: inputData,
+logger.setContext("domain.feature.action");
+logger.warn({ 
+    message: "Warning message", 
+    data: inputData, 
     error: errorMessageOrObject 
 });
 ```
 
 **Example:**
 ```typescript
-logger.warn("Validation error", { 
-    layer: "controller", 
-    context: "controller.user.login", 
+logger.setContext("controller.user.login");
+logger.warn({ 
+    message: "Validation error", 
     data: req.query, 
     error: err.message 
 });
@@ -80,18 +91,18 @@ Use `logger.error` for exceptions, unexpected failures, and critical issues.
 
 **Format:**
 ```typescript
-logger.error("Error message", { 
-    layer: "layer_name", 
-    context: "domain.feature.action", 
+logger.setContext("domain.feature.action");
+logger.error({ 
+    message: "Error message", 
     error: errorObject 
 });
 ```
 
 **Example:**
 ```typescript
-logger.error("Login failed", { 
-    layer: "controller", 
-    context: "controller.user.login", 
+logger.setContext("controller.user.login");
+logger.error({ 
+    message: "Login failed", 
     data: req.query, 
     error: err 
 });
