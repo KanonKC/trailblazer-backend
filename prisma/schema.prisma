@@ -137,7 +137,7 @@ model RandomDbdPerkClass {
   twitch_reward_id    String?       @unique
   maximum_random_size Int           @default(999)
   random_dbd_perk_id  String
-  randomDbdPerks      RandomDbdPerk @relation(fields: [random_dbd_perk_id], references: [id])
+  randomDbdPerks      RandomDbdPerk @relation(fields: [random_dbd_perk_id], references: [id], onDelete: Cascade)
   created_at          DateTime      @default(now())
   updated_at          DateTime      @updatedAt
 

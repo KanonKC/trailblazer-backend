@@ -30,23 +30,32 @@ export default class AuthService {
         logger.info({ message: "getTwitchAccessToken", data: { twitchId } });
         const cacheKey = `auth:twitch_access_token:twitch_id:${twitchId}`;
         let token = await redis.get(cacheKey);
+        console.log('token', token)
         if (token) {
             // Validate token
             const twitchUserAPI = createTwitchUserAPI(token)
-            const tokenInfo = await twitchUserAPI.getTokenInfo()
-            logger.info({ message: "tokenInfo", data: tokenInfo[rawDataSymbol] });
-            // If valid return token
-            if (!tokenInfo.expiryDate || tokenInfo.expiryDate > new Date()) {
-                return token
+            console.log('twitchUserAPI', twitchUserAPI)
+            try {
+
+                const tokenInfo = await twitchUserAPI.getTokenInfo()
+                console.log('tokenInfo', tokenInfo)
+                logger.info({ message: "tokenInfo", data: tokenInfo[rawDataSymbol] });
+                // If valid return token
+                if (!tokenInfo.expiryDate || tokenInfo.expiryDate > new Date()) {
+                    return token
+                }
+                // Delete invalid token
+            } catch (error) {
+                logger.error({ message: "Error on getTwitchAccessToken", error: error as Error });
             }
-            // Delete invalid token
-            await redis.del(cacheKey)
             // Otherwise continue
+            await redis.del(cacheKey)
         }
         // Generate token from refresh token
         const now = new Date()
         let auth: Auth | null = null
         const user = await this.userRepository.getByTwitchId(twitchId)
+        console.log('user', user)
         logger.info({ message: "user", data: user });
         if (!user) {
             throw new Error("User not found");

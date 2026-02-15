@@ -23,7 +23,8 @@ export default class RandomDbdPerkRepository {
                 classes: {
                     createMany: {
                         data: classType.map((type) => ({
-                            type
+                            type,
+                            enabled: false
                         }))
                     }
                 }
