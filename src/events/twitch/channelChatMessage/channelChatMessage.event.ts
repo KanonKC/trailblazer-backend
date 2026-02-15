@@ -26,7 +26,7 @@ export default class TwitchChannelChatMessageEvent {
         const event = body.event as TwitchChannelChatMessageEventRequest
 
         if (body.subscription.status === "enabled") {
-            this.logger.info({ message: "Handling chat message event", data: event });
+            // this.logger.info({ message: "Handling chat message event", data: event });
             this.firstWordService.greetNewChatter(event)
             res.status(204).send()
             return
