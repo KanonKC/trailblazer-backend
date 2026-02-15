@@ -3,14 +3,14 @@ import { CreateRandomDbdPerk, RandomDbdPerkClassType, UpdateRandomDbdPerk } from
 import UserRepository from "@/repositories/user/user.repository";
 import { createESTransport, twitchAppAPI } from "@/libs/twurple";
 import TLogger, { Layer } from "@/logging/logger";
-import { RandomDbdPerkWidget } from "@/repositories/randomDbdPerk/response";
 import redis, { TTL, publisher } from "@/libs/redis";
 import { prisma } from "@/libs/prisma";
 import crypto from "crypto";
 import { TwitchChannelRedemptionAddEventRequest } from "@/events/twitch/channelRedemptionAdd/request";
 import axios from "axios";
-import { DbdPerkPagination } from "./response";
+import { DbdPerkPagination, ExtendedRandomDbdPerk } from "./response";
 import { capitalize } from "@/utils/message";
+import { RandomDbdPerkWidget } from "@/repositories/randomDbdPerk/response";
 
 
 export default class RandomDbdPerkService {
@@ -24,7 +24,17 @@ export default class RandomDbdPerkService {
         this.logger = new TLogger(Layer.SERVICE);
     }
 
-    async create(request: CreateRandomDbdPerk): Promise<RandomDbdPerkWidget> {
+    async extend(rw: RandomDbdPerkWidget): Promise<ExtendedRandomDbdPerk> {
+        const totalKillerPerks = await this.getTotalPerkCount(RandomDbdPerkClassType.KILLER)
+        const totalSurvivorPerks = await this.getTotalPerkCount(RandomDbdPerkClassType.SURVIVOR)
+        return {
+            ...rw,
+            totalKillerPerks,
+            totalSurvivorPerks
+        }
+    }
+
+    async create(request: CreateRandomDbdPerk): Promise<ExtendedRandomDbdPerk> {
         this.logger.setContext("service.randomDbdPerk.create");
         const user = await this.userRepository.get(request.owner_id);
         if (!user) {
@@ -41,17 +51,35 @@ export default class RandomDbdPerkService {
             this.logger.info({ message: "Subscribed to channel redemption add events", data: { userId: user.id, twitchId: user.twitch_id } });
         }
 
-        return this.randomDbdPerkRepository.create(request);
+        return this.extend(await this.randomDbdPerkRepository.create(request));
     }
 
-    async update(id: string, request: UpdateRandomDbdPerk): Promise<RandomDbdPerkWidget> {
+    async update(id: string, request: UpdateRandomDbdPerk): Promise<ExtendedRandomDbdPerk> {
         this.logger.setContext("service.randomDbdPerk.update");
+        
+        const survivorCount = await this.getTotalPerkCount(RandomDbdPerkClassType.SURVIVOR)
+        const killerCount = await this.getTotalPerkCount(RandomDbdPerkClassType.KILLER)
+
+        if (request.classes) {
+            for (let i=0;i < request.classes.length; i++) {
+                let maxCount = killerCount
+                if (request.classes[i].type === RandomDbdPerkClassType.SURVIVOR) {
+                    maxCount = survivorCount
+                }
+
+                if (!request.classes[i].maximum_random_size || request.classes[i].maximum_random_size! >= maxCount) {
+                    request.classes[i].maximum_random_size = 999
+                }
+                
+            }
+        }
+
         const updated = await this.randomDbdPerkRepository.update(id, request);
         if (updated) {
             await redis.del(`random_dbd_perk:owner_id:${updated.widget.owner_id}`);
             await redis.del(`random_dbd_perk:twitch_id:${updated.widget.twitch_id}`);
         }
-        return updated;
+        return this.extend(updated);
     }
 
     async delete(userId: string): Promise<void> {
@@ -67,8 +95,12 @@ export default class RandomDbdPerkService {
         await redis.del(`random_dbd_perk:owner_id:${userId}`);
     }
 
-    async getByUserId(userId: string): Promise<RandomDbdPerkWidget | null> {
-        return this.randomDbdPerkRepository.getByOwnerId(userId);
+    async getByUserId(userId: string): Promise<ExtendedRandomDbdPerk | null> {
+        const randomDbdPerk = await this.randomDbdPerkRepository.getByOwnerId(userId);
+        if (!randomDbdPerk) {
+            return null;
+        }
+        return this.extend(randomDbdPerk);
     }
 
     async randomPerk(event: TwitchChannelRedemptionAddEventRequest): Promise<void> {
@@ -84,14 +116,21 @@ export default class RandomDbdPerkService {
         const randomSize = Math.min(maxPerkCount, randomClass.maximum_random_size)
 
         const randomResult: number[] = []
-        const perkCount = 4
-        for (let i = 0; i < perkCount; i++) {
+        const perkCount = Math.min(4, randomSize)
+        let i = 0
+        while (i < perkCount) {
             const randomPerk = (Math.floor(Math.random() * randomSize)) + 1
+            if (randomResult.includes(randomPerk)) {
+                continue
+            }
             randomResult.push(randomPerk)
+            i++
         }
-
+        console.log("random result", randomResult)
         const pagination = randomResult.map(this.paginateDbdPerk)
-        const randomPerkMessage = pagination.map(p => ` ${p.page}/${p.row * 5 + p.perk}`).join(" |")
+        console.log("paginated random result", pagination)
+        const randomPerkMessage = pagination.map(p => ` ${p.page}/${(p.row-1) * 5 + p.perk}`).join(" |")
+        console.log("random perk message", randomPerkMessage)
         const message = `Random ${capitalize(randomClass.type)} Perks [${randomPerkMessage} ]`
 
         const senderId = event.broadcaster_user_id
@@ -141,6 +180,7 @@ export default class RandomDbdPerkService {
     }
 
     paginateDbdPerk(sequence: number): DbdPerkPagination {
+        sequence -= 1
         const page = (Math.floor(sequence / 15)) + 1
         let perk = sequence % 15
         const row = (Math.floor(perk / 5)) + 1

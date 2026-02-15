@@ -30,7 +30,11 @@ export default class RandomDbdPerkRepository {
             },
             include: {
                 widget: true,
-                classes: true
+                classes: {
+                    orderBy: {
+                        type: "desc"
+                    }
+                }
             }
         });
     }
@@ -57,7 +61,11 @@ export default class RandomDbdPerkRepository {
             },
             include: {
                 widget: true,
-                classes: true
+                classes: {
+                    orderBy: {
+                        type: "desc"
+                    }
+                }
             }
         });
     }
@@ -85,7 +93,11 @@ export default class RandomDbdPerkRepository {
                 where: { widget_id: widget.id },
                 include: {
                     widget: true,
-                    classes: true
+                    classes: {
+                        orderBy: {
+                            type: "desc"
+                        }
+                    }
                 }
             });
         } catch (error) {
@@ -110,8 +122,12 @@ export default class RandomDbdPerkRepository {
                 where: { widget_id: widget.id },
                 include: {
                     widget: true,
-                    classes: true
-                }
+                    classes: {
+                        orderBy: {
+                            type: "desc"
+                        }
+                    }
+                },
             });
         } catch (error) {
             return null;

@@ -14,7 +14,8 @@ export default class TwitchService {
         data: HelixCustomRewardData[];
     }> {
         const twitchUserAPI = await this.authService.createTwitchUserAPI(channelId)
-        const res = await twitchUserAPI.channelPoints.getCustomRewards(channelId)
+        let res = await twitchUserAPI.channelPoints.getCustomRewards(channelId)
+        res = res.sort((a, b) => a.cost - b.cost)
         return { data: res.map(r => r[rawDataSymbol]) }
     }
 }
