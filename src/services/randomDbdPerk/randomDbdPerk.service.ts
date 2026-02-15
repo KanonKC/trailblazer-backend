@@ -56,12 +56,12 @@ export default class RandomDbdPerkService {
 
     async update(id: string, request: UpdateRandomDbdPerk): Promise<ExtendedRandomDbdPerk> {
         this.logger.setContext("service.randomDbdPerk.update");
-        
+
         const survivorCount = await this.getTotalPerkCount(RandomDbdPerkClassType.SURVIVOR)
         const killerCount = await this.getTotalPerkCount(RandomDbdPerkClassType.KILLER)
 
         if (request.classes) {
-            for (let i=0;i < request.classes.length; i++) {
+            for (let i = 0; i < request.classes.length; i++) {
                 let maxCount = killerCount
                 if (request.classes[i].type === RandomDbdPerkClassType.SURVIVOR) {
                     maxCount = survivorCount
@@ -70,7 +70,7 @@ export default class RandomDbdPerkService {
                 if (!request.classes[i].maximum_random_size || request.classes[i].maximum_random_size! >= maxCount) {
                     request.classes[i].maximum_random_size = 999
                 }
-                
+
             }
         }
 
@@ -129,7 +129,7 @@ export default class RandomDbdPerkService {
             i++
         }
         const pagination = randomResult.map(this.paginateDbdPerk)
-        const randomPerkMessage = pagination.map(p => ` ${p.page}/${(p.row-1) * 5 + p.perk}`).join(" |")
+        const randomPerkMessage = pagination.map(p => ` ${p.page}/${(p.row - 1) * 5 + p.perk}`).join(" |")
         const message = `Random ${capitalize(randomClass.type)} Perks [${randomPerkMessage} ]`
 
         const senderId = event.broadcaster_user_id
@@ -143,33 +143,38 @@ export default class RandomDbdPerkService {
 
     async getTotalPerkCount(type: string): Promise<number> {
         this.logger.setContext("service.randomDbdPerk.getTotalPerkCount");
-        const cacheKey = `random_dbd_perk:total_perk_count:${type}`
-
-        const cachedCount = await redis.get(cacheKey)
-        if (cachedCount) {
-            return parseInt(cachedCount)
-        }
-
-        const { data } = await axios.get("https://deadbydaylight.fandom.com/wiki/Perks")
-        this.logger.info({ message: "Fetched perks from external source", data: { type } });
-
-        let perkCountRes: string[] = []
         if (type === RandomDbdPerkClassType.KILLER) {
-            perkCountRes = data.match(/Killer Perks.*\)/g)
+            return 145
         } else {
-            perkCountRes = data.match(/Survivor Perks.*\)/g)
+            return 170
         }
+        // const cacheKey = `random_dbd_perk:total_perk_count:${type}`
 
-        if (perkCountRes.length === 0) {
-            throw new Error("No perks found")
-        }
-        const countStr = perkCountRes[0].split(" ").pop()?.slice(1, -1)
-        if (!countStr) {
-            throw new Error("No count found")
-        }
-        const count = parseInt(countStr)
-        redis.set(cacheKey, count, TTL.ONE_DAY)
-        return count
+        // const cachedCount = await redis.get(cacheKey)
+        // if (cachedCount) {
+        //     return parseInt(cachedCount)
+        // }
+
+        // const { data } = await axios.get("https://deadbydaylight.fandom.com/wiki/Perks")
+        // this.logger.info({ message: "Fetched perks from external source", data: { type } });
+
+        // let perkCountRes: string[] = []
+        // if (type === RandomDbdPerkClassType.KILLER) {
+        //     perkCountRes = data.match(/Killer Perks.*\)/g)
+        // } else {
+        //     perkCountRes = data.match(/Survivor Perks.*\)/g)
+        // }
+
+        // if (perkCountRes.length === 0) {
+        //     throw new Error("No perks found")
+        // }
+        // const countStr = perkCountRes[0].split(" ").pop()?.slice(1, -1)
+        // if (!countStr) {
+        //     throw new Error("No count found")
+        // }
+        // const count = parseInt(countStr)
+        // redis.set(cacheKey, count, TTL.ONE_DAY)
+        // return count
     }
 
     paginateDbdPerk(sequence: number): DbdPerkPagination {
