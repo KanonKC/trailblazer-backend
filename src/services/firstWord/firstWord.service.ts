@@ -169,7 +169,7 @@ export default class FirstWordService {
 
     async greetNewChatter(e: TwitchChannelChatMessageEventRequest): Promise<void> {
         this.logger.setContext("service.firstWord.greetNewChatter");
-        this.logger.info({ message: "First word greet new chatter", data: { event: e } });
+        this.logger.info({ message: "Initiate greeting new chatter", data: { event: e } });
         let user: User | null = null
         const userCacheKey = `user:twitch_id:${e.broadcaster_user_id}`
         const userCache = await redis.get(userCacheKey)
@@ -188,7 +188,7 @@ export default class FirstWordService {
             throw new Error("User not found");
         }
 
-        this.logger.info({ message: "User found", data: { user } });
+        this.logger.info({ message: "Found user", data: { user } });
 
         const firstWordCacheKey = `first_word:owner_id:${user.id}`
         const firstWordCache = await redis.get(firstWordCacheKey)
@@ -196,21 +196,19 @@ export default class FirstWordService {
 
         if (firstWordCache) {
             firstWord = JSON.parse(firstWordCache)
-            this.logger.debug({ message: "firstWordCache", data: firstWord });
         } else {
             firstWord = await this.firstWordRepository.getByOwnerId(user.id);
-            this.logger.debug({ message: "firstWordDb", data: firstWord });
             if (firstWord) {
                 redis.set(firstWordCacheKey, JSON.stringify(firstWord), TTL.TWO_HOURS)
             }
         }
 
         if (!firstWord) {
-            this.logger.error({ message: "First word not found", data: { user } });
-            throw new Error("First word not found");
+            this.logger.error({ message: "First word config not found", data: { user } });
+            throw new Error("First word config not found");
         }
 
-        this.logger.info({ message: "First word found", data: { firstWord } });
+        this.logger.info({ message: "First word config found", data: { firstWord } });
 
         // Check if first word is enabled
         if (!firstWord.widget.enabled) {
@@ -238,7 +236,7 @@ export default class FirstWordService {
             redis.set(chattersCacheKey, JSON.stringify(chatters), TTL.TWO_HOURS)
         }
 
-        this.logger.info({ message: "Chatters found", data: { chatters } });
+        this.logger.info({ message: "Found chatters", data: { chatters } });
         const chatter = chatters.find(chatter => chatter.twitch_chatter_id === e.chatter_user_id)
 
         // Check if user is already greeted and not a test user

@@ -1,0 +1,16 @@
+meta {
+  name: Get Channel Rewards List
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BaseURL}}/api/v1/twitch/channel-rewards
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
